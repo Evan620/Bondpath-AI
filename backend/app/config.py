@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     jwt_secret: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    cors_origins: List[str] = ["http://localhost:5173"]
+    cors_origins: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     log_level: str = "INFO"
     
     # Email Configuration

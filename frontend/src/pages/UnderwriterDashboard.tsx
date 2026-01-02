@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient as api } from '../api/client';
 import { useAuth } from '../store/AuthContext';
-import { Scale, FileCheck } from 'lucide-react';
+import { Clock, FileCheck } from 'lucide-react';
 
 interface Case {
     id: string;
@@ -36,9 +36,11 @@ export default function UnderwriterDashboard() {
     const fetchCases = async () => {
         try {
             const response = await api.get('/cases/');
-            // Filter for cases in UNDERWRITING_REVIEW state
+            // Only show cases that have been transferred to underwriting
             const uwCases = response.data.filter((c: Case) =>
-                c.state === 'UNDERWRITING_REVIEW'
+                ['UNDERWRITING_REVIEW', 'APPROVED', 'HOLD', 'DENIED'].includes(c.state)
+            ).sort((a: Case, b: Case) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
             setCases(uwCases);
             setLoading(false);
@@ -53,17 +55,17 @@ export default function UnderwriterDashboard() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <div className="bg-white shadow-sm border-b border-slate-200">
+            <div className="bg-white shadow">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900">Underwriter Dashboard</h1>
-                        <p className="text-sm text-slate-600 font-medium">Cases awaiting underwriting decision</p>
+                        <h1 className="text-2xl font-bold text-gray-900">Underwriter Dashboard</h1>
+                        <p className="text-sm text-gray-600">Cases awaiting underwriting decision</p>
                     </div>
                     <button
                         onClick={logout}
-                        className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors"
+                        className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
                     >
                         Logout
                     </button>
@@ -73,74 +75,81 @@ export default function UnderwriterDashboard() {
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {loading ? (
-                    <div className="text-center py-12">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
-                        <p className="mt-4 text-slate-600 font-medium">Loading cases...</p>
-                    </div>
+                    <div className="text-center py-12">Loading cases...</div>
                 ) : cases.length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-                        <Scale className="w-16 h-16 mx-auto text-slate-400 mb-4" />
-                        <h3 className="text-lg font-bold text-slate-900 mb-2">No Cases Pending Review</h3>
-                        <p className="text-slate-600 font-medium">All cases have been reviewed or are in other stages.</p>
+                    <div className="bg-white rounded-lg shadow p-12 text-center">
+                        <Clock className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Cases Pending</h3>
+                        <p className="text-gray-600">All cases have been reviewed or are in other stages.</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50">
+                    <div className="bg-white rounded-lg shadow overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Defendant
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Indemnitor
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Bond Amount
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Premium Type
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Submitted
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Action
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-slate-100">
+                            <tbody className="bg-white divide-y divide-gray-200">
                                 {cases.map((caseItem) => (
-                                    <tr key={caseItem.id} className="hover:bg-slate-50 transition-colors">
+                                    <tr key={caseItem.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
-                                                <FileCheck className="w-5 h-5 text-slate-400 mr-2" />
-                                                <div className="text-sm font-bold text-slate-900">
+                                                <FileCheck className="w-5 h-5 text-gray-400 mr-2" />
+                                                <div className="text-sm font-medium text-gray-900">
                                                     {caseItem.defendant_first_name} {caseItem.defendant_last_name}
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-slate-700">
+                                            <div className="text-sm text-gray-900">
                                                 {caseItem.indemnitor_first_name} {caseItem.indemnitor_last_name}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-bold text-slate-900">${caseItem.bond_amount?.toLocaleString()}</div>
+                                            <div className="text-sm text-gray-900">${caseItem.bond_amount}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                                                {caseItem.premium_type || 'N/A'}
-                                            </span>
+                                            <div className="text-sm text-gray-900">{caseItem.premium_type || 'N/A'}</div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {new Date(caseItem.created_at).toLocaleDateString()}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${caseItem.state === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                                                caseItem.state === 'DENIED' ? 'bg-red-100 text-red-800' :
+                                                    caseItem.state === 'HOLD' ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-blue-100 text-blue-800'
+                                                }`}>
+                                                {caseItem.state === 'UNDERWRITING_REVIEW' ? 'PENDING' : caseItem.state}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button
                                                 onClick={() => handleCaseClick(caseItem.id)}
-                                                className="text-blue-600 hover:text-blue-700 transition-colors"
+                                                className="text-blue-600 hover:text-blue-900"
                                             >
-                                                Review →
+                                                {caseItem.state === 'UNDERWRITING_REVIEW' ? 'Review →' : 'View →'}
                                             </button>
                                         </td>
                                     </tr>
