@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
 import { authService } from '../api/auth';
-import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export const Login = () => {
     const [email, setEmail] = useState('');
@@ -11,6 +11,8 @@ export const Login = () => {
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,18 +39,7 @@ export const Login = () => {
                 <div className="absolute top-0 -right-4 w-72 h-72 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
             </div>
 
-            <div className="mx-auto w-full max-w-sm relative z-10">
-                <div className="flex justify-center mb-8">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-600/20">
-                            <ShieldCheck className="w-8 h-8 text-white" />
-                        </div>
-                        <span className="font-black text-3xl text-slate-900 tracking-tight">Bondpath AI</span>
-                    </div>
-                </div>
-            </div>
-
-            <div className="mx-auto w-full max-w-[400px] relative z-10 px-4">
+            <div className="mx-auto w-full max-w-[440px] relative z-10 px-4">
                 <div className="bg-white py-10 px-8 shadow-[0_20px_50px_rgba(8,_112,_184,_0.07)] rounded-3xl border border-slate-100">
                     <div className="mb-8 text-center">
                         <h2 className="text-2xl font-bold text-slate-900">Welcome Back</h2>
@@ -89,14 +80,25 @@ export const Login = () => {
                                 <input
                                     id="password"
                                     name="password"
-                                    type="password"
+                                    type={showPassword ? "text" : "password"}
                                     autoComplete="current-password"
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="appearance-none block w-full pl-11 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 sm:text-sm font-medium"
+                                    className="appearance-none block w-full pl-11 pr-10 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all duration-200 sm:text-sm font-medium"
                                     placeholder="••••••••"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-5 w-5" />
+                                    ) : (
+                                        <Eye className="h-5 w-5" />
+                                    )}
+                                </button>
                             </div>
                         </div>
 
