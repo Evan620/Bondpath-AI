@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { CheckCircle, XCircle, Eye, ExternalLink } from 'lucide-react';
 
 interface VerificationItem {
@@ -14,18 +13,17 @@ interface VerificationItem {
 interface VerificationChecklistProps {
     items: VerificationItem[];
     onToggleVerify: (id: string, verified: boolean) => void;
-    onAddNote: (id: string, note: string) => void;
 }
 
-export default function VerificationChecklist({ items, onToggleVerify, onAddNote }: VerificationChecklistProps) {
+export default function VerificationChecklist({ items, onToggleVerify }: VerificationChecklistProps) {
     return (
         <div className="space-y-4">
             {items.map((item) => (
                 <div
                     key={item.id}
                     className={`p-4 rounded-lg border transition-all ${item.verified
-                            ? 'bg-green-50 border-green-200'
-                            : 'bg-white border-slate-200 hover:border-blue-300'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-white border-slate-200 hover:border-blue-300'
                         }`}
                 >
                     <div className="flex items-start justify-between">
@@ -62,8 +60,8 @@ export default function VerificationChecklist({ items, onToggleVerify, onAddNote
                             <button
                                 onClick={() => onToggleVerify(item.id, !item.verified)}
                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${item.verified
-                                        ? 'bg-white border border-green-200 text-green-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
-                                        : 'bg-slate-900 text-white hover:bg-slate-800'
+                                    ? 'bg-white border border-green-200 text-green-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                                    : 'bg-slate-900 text-white hover:bg-slate-800'
                                     }`}
                             >
                                 {item.verified ? 'Verified' : 'Mark Verified'}

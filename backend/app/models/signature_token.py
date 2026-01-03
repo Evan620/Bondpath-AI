@@ -9,7 +9,7 @@ class SignatureToken(Base):
     __tablename__ = "signature_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False, index=True)
+    case_id = Column(String, ForeignKey("cases.id"), nullable=False, index=True)
     token = Column(String, unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, nullable=False)
     expires_at = Column(DateTime, nullable=False, default=lambda: datetime.utcnow() + timedelta(days=7))

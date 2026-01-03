@@ -443,7 +443,6 @@ export default function UnderwriterCaseDetail() {
                                     <VerificationChecklist
                                         items={checklist}
                                         onToggleVerify={handleToggleVerify}
-                                        onAddNote={() => { }}
                                     />
                                 </div>
                             </div>

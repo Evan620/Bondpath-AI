@@ -86,13 +86,13 @@ export const NewCaseModal = ({ isOpen, onClose, onSubmit }: NewCaseModalProps) =
     };
 
     // Debug errors
-    const onError = (errors: any, e: any) => {
+    const onError = (errors: any) => {
         console.error("Form validation errors:", errors);
     };
 
     const LoadingIndicator = () => (
         <div className="flex gap-1 mb-6 justify-center">
-            {STEPS.map((step, idx) => (
+            {STEPS.map((_, idx) => (
                 <div
                     key={idx}
                     className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentStep ? 'w-8 bg-blue-600' :

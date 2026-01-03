@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { caseService } from '../api/case';
 import type { Case } from '../types';
-import { ArrowLeft, User, DollarSign, MapPin, ShieldCheck, Clock, Flag, LayoutDashboard, Fingerprint, Phone, LogOut } from 'lucide-react';
+import { User, DollarSign, MapPin, ShieldCheck, Clock, Flag, LayoutDashboard, Fingerprint, Phone, LogOut } from 'lucide-react';
 import { AIAnalysis } from '../components/case/AIAnalysis';
 import { useAuth } from '../store/AuthContext';
 
