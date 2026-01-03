@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .api import auth, cases, audit, users, signature, agents
+from .api import auth, cases, audit, users, signature, agents, chat
 
 app = FastAPI(
     title="Bail Decision System",
@@ -33,6 +33,7 @@ app.include_router(audit.router)
 app.include_router(users.router)
 app.include_router(signature.router)
 app.include_router(agents.router)
+app.include_router(chat.router)
 
 @app.get("/health")
 def health_check():

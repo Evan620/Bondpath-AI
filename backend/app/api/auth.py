@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ..database import get_db
+from ..database import get_db
 from ..models.user import User
 from ..schemas.auth import Token, UserLogin
+from jose import jwt, JWTError
 from ..utils import verify_password, create_access_token, get_password_hash # Added get_password_hash for potential user creation
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -27,3 +29,18 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
         data={"sub": user.email, "role": user.role, "user_id": user.id}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer", "role": user.role, "user_id": user.id}
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.algorithm])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        return payload 
+    except jwt.JWTError:
+        raise credentials_exception

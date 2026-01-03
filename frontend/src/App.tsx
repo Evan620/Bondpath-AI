@@ -3,12 +3,15 @@ import type { ReactNode } from 'react';
 import { Dashboard } from './pages/Dashboard';
 import AdvisorDashboard from './pages/AdvisorDashboard';
 import UnderwriterDashboard from './pages/UnderwriterDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import { Login } from './pages/Login';
 import { CaseDetail } from './pages/CaseDetail';
 import AdvisorCaseDetail from './components/advisor/AdvisorCaseDetail';
 import UnderwriterCaseDetail from './components/underwriter/UnderwriterCaseDetail';
+import AdminCaseDetail from './pages/AdminCaseDetail';
 import RemoteSignature from './pages/RemoteSignature';
 import { AuthProvider, useAuth } from './store/AuthContext';
+import { CopilotWidget } from './components/common/CopilotWidget';
 
 const NotFound = () => <div className="p-10"><h1>404 Not Found</h1></div>;
 
@@ -21,6 +24,7 @@ const RoleProtectedRoute = ({ children, allowedRoles }: { children: ReactNode, a
   if (role && !allowedRoles.includes(role)) {
     if (role === 'PRODUCER') return <Navigate to="/advisor" replace />;
     if (role === 'UW') return <Navigate to="/underwriter" replace />;
+    if (role === 'ADMIN') return <Navigate to="/admin" replace />;
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -33,6 +37,7 @@ const RoleBasedRedirect = () => {
 
   if (role === 'PRODUCER') return <Navigate to="/advisor" replace />;
   if (role === 'UW') return <Navigate to="/underwriter" replace />;
+  if (role === 'ADMIN') return <Navigate to="/admin" replace />;
   return <Navigate to="/dashboard" replace />;
 };
 
@@ -47,14 +52,14 @@ function App() {
 
           {/* Root Redirect */}
           <Route path="/" element={
-            <RoleProtectedRoute allowedRoles={['PRODUCER', 'UW', 'USER']}>
+            <RoleProtectedRoute allowedRoles={['PRODUCER', 'UW', 'USER', 'ADMIN', 'CST']}>
               <RoleBasedRedirect />
             </RoleProtectedRoute>
           } />
 
           {/* CST Dashboard (Access for everyone? Or just CST? Assuming CST/Admins) */}
           <Route path="/dashboard" element={
-            <RoleProtectedRoute allowedRoles={['CST', 'ADMIN']}>
+            <RoleProtectedRoute allowedRoles={['CST']}>
               <Dashboard />
             </RoleProtectedRoute>
           } />
@@ -83,7 +88,19 @@ function App() {
             </RoleProtectedRoute>
           } />
 
-          {/* Generic Case Detail - CST Only */}
+          {/* Admin Routes - Strictly ADMIN */}
+          <Route path="/admin" element={
+            <RoleProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboard />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/admin/cases/:id" element={
+            <RoleProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminCaseDetail />
+            </RoleProtectedRoute>
+          } />
+
+          {/* Generic Case Detail - CST Only - Keeping ADMIN access here too just in case, but they have their own view now */}
           <Route path="/cases/:id" element={
             <RoleProtectedRoute allowedRoles={['CST', 'ADMIN']}>
               <CaseDetail />
@@ -92,6 +109,7 @@ function App() {
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <CopilotWidget />
       </Router>
     </AuthProvider>
   );

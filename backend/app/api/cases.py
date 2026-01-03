@@ -4,6 +4,8 @@ from typing import List, Dict
 from ..database import get_db
 import os
 import shutil
+from datetime import datetime, date
+from decimal import Decimal
 from ..models.case import Case as CaseModel
 from ..schemas.case import Case, CaseCreate, CaseUpdate
 from ..api.auth import oauth2_scheme 
@@ -147,8 +149,39 @@ async def upload_document(
     elif document_type == "collateral_doc":
         db_case.collateral_doc_url = file_url
         
+    # Trigger AI Verification
+    try:
+        # Convert case to dict for agent
+        case_data = {
+            "defendant_first_name": db_case.defendant_first_name,
+            "defendant_last_name": db_case.defendant_last_name,
+            "defendant_dob": db_case.defendant_dob,
+            "booking_number": db_case.booking_number,
+            "charges": db_case.charges
+        }
+        
+        verification_result = doc_verify_agent.run({
+            "file_url": file_path, # Pass absolute path
+            "case_data": case_data,
+            "doc_type": document_type
+        })
+        
+        # Update verified status
+        current_verified = dict(db_case.documents_verified) if db_case.documents_verified else {}
+        current_verified[document_type] = verification_result
+        db_case.documents_verified = current_verified
+        
+    except Exception as e:
+        print(f"Verification failed: {e}")
+        # Don't fail the upload just because AI didn't work
+        pass
+        
     db.commit()
-    return {"url": file_url, "filename": file.filename}
+    return {
+        "url": file_url, 
+        "filename": file.filename,
+        "verification": db_case.documents_verified.get(document_type)
+    }
 
 @router.patch("/{case_id}", response_model=Case)
 def update_case(case_id: str, case_update: CaseUpdate, db: Session = Depends(get_db)):
@@ -271,4 +304,46 @@ def reassess_risk(case_id: str, db: Session = Depends(get_db)):
             status_code=500, 
             detail=f"Risk assessment failed: {str(e)}"
         )
+
+@router.post("/{case_id}/check-readiness")
+def check_case_readiness(case_id: str, db: Session = Depends(get_db)):
+    """
+    Run AI readiness check to see if the case is ready for underwriter review.
+    """
+    db_case = db.query(CaseModel).filter(CaseModel.id == case_id).first()
+    if not db_case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        # Build comprehensive facts dictionary (reuse logic from reassess_risk or extract to helper)
+        # For now, we dump the model to dict, but specialized formatting helps the AI
+        case_data = {c.name: getattr(db_case, c.name) for c in db_case.__table__.columns}
+        
+        # Clean dates/decimals for JSON serialization
+        # (Pydantic/JSON encoder usually handles this, but agents prefer clean strings)
+        for k, v in case_data.items():
+            if isinstance(v, (datetime, date)):
+                case_data[k] = v.isoformat()
+            if isinstance(v, Decimal):
+                case_data[k] = float(v)
+
+        # Run Agent
+        readiness_output = readiness_agent.run(case_data)
+        
+        # Update derived_facts
+        current_facts = dict(db_case.derived_facts) if db_case.derived_facts else {}
+        current_facts['readiness'] = readiness_output
+        db_case.derived_facts = current_facts
+        
+        db.commit()
+        db.refresh(db_case)
+        
+        return {
+            "success": True,
+            "readiness": readiness_output
+        }
+        
+    except Exception as e:
+        print(f"Readiness check failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
