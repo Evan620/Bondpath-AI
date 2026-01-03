@@ -27,40 +27,17 @@ class BaseAgent:
         Calls Gemini with a prompt and forces structured JSON output matching response_schema.
         Falls back to OpenAI if Gemini hits rate limits (429).
         """
-        for attempt in range(3):
-            try:
-                full_prompt = f"{prompt}\n\nContext: {json.dumps(context, default=str) if context else '{}'}"
-                
-                result = self.model.generate_content(
-                    full_prompt,
-                    generation_config=genai.GenerationConfig(
-                        response_mime_type="application/json",
-                        response_schema=response_schema
-                    )
-                )
-                return json.loads(result.text)
-            except Exception as e:
-                import time
-                import random
-                
-                # Check for rate limit errors
-                if "429" in str(e) or "quota" in str(e).lower():
-                    if attempt < 2:  # Don't sleep on the last attempt
-                        sleep_time = (2 ** attempt) + (random.random() * 2)
-                        print(f"Gemini 429 (Quota Exceeded). Retrying in {sleep_time:.2f}s...")
-                        time.sleep(sleep_time)
-                        continue
-                    else:
-                        # Fallback to OpenAI if retries exhausted and client exists
-                        if self.client:
-                            print("Gemini Quota Exceeded. Falling back to OpenAI...")
-                            return self._call_openai(
-                                [{"role": "user", "content": full_prompt}],
-                                response_format=response_schema
-                            )
-                
-                print(f"Gemini API Error: {e}")
-                raise e
+        # TEMPORARILY DISABLED GEMINI due to 429 errors
+        # Directly fallback to OpenAI
+        full_prompt = f"{prompt}\n\nContext: {json.dumps(context, default=str) if context else '{}'}"
+        if self.client:
+            print("Gemini disabled. Routing directly to OpenAI...")
+            return self._call_openai(
+                [{"role": "user", "content": full_prompt}],
+                response_format=response_schema
+            )
+        else:
+            raise Exception("Gemini disabled and no OpenAI client available.")
 
     def _call_openai(self, messages: list, response_format: type = None) -> dict:
         """
