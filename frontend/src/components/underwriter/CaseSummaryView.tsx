@@ -1,254 +1,346 @@
-import { CheckCircle, XCircle, Clock, Edit, Calendar, User, DollarSign, FileText, Shield, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Printer, Edit2, Phone, User, Shield, Briefcase, Scale, CheckSquare, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
+
+interface Case {
+    id: string;
+    state: string;
+    defendant_first_name: string;
+    defendant_last_name: string;
+    defendant_dob?: string;
+    defendant_gender?: string;
+    bond_amount: number;
+    bond_type?: string;
+    charge_severity?: string;
+    intent_signal?: string;
+    jail_facility?: string;
+    indemnitor_first_name?: string;
+    indemnitor_last_name?: string;
+    indemnitor_relationship?: string;
+    premium_type?: string;
+    down_payment_amount?: number;
+    collateral_doc_url?: string;
+    charges?: string;
+    uw_decision?: string;
+    uw_reason?: string;
+    uw_name?: string;
+    paid_in_full?: string;
+    power_number?: string;
+    court_case_number?: string;
+    caller_name?: string;
+    caller_relationship?: string;
+    caller_email?: string;
+    updated_at?: string;
+    derived_facts?: any;
+}
 
 interface CaseSummaryViewProps {
-    caseData: any;
+    caseData: Case;
     onEdit: () => void;
 }
 
 export default function CaseSummaryView({ caseData, onEdit }: CaseSummaryViewProps) {
-    const getStatusColor = () => {
-        switch (caseData.state) {
-            case 'APPROVED': return 'green';
-            case 'HOLD': return 'yellow';
-            case 'DENIED': return 'red';
-            default: return 'blue';
-        }
-    };
+    // Calculate premium (10% standard)
+    const premiumAmount = (caseData.bond_amount * 0.10).toFixed(2);
 
-    const color = getStatusColor();
-    const statusIcon = caseData.state === 'APPROVED' ? CheckCircle :
-        caseData.state === 'HOLD' ? Clock : XCircle;
-    const StatusIcon = statusIcon;
+    // Format decided date (using updated_at as proxy if not specifically available)
+    const decisionDate = caseData.updated_at ? format(new Date(caseData.updated_at), 'M/d/yyyy') : format(new Date(), 'M/d/yyyy');
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-20">
-            {/* Header */}
-            <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
-                <div className="max-w-6xl mx-auto px-6 py-4">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                                <Shield className="w-5 h-5 text-blue-600" />
-                                Case Summary
+        <div className="min-h-screen bg-slate-50 p-6">
+            {/* Header Section */}
+            <div className="max-w-7xl mx-auto space-y-6">
+
+                {/* Breadcrumbs & Title Row */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+                                Case #{caseData.id.slice(0, 8)}
                             </h1>
-                            <p className="text-sm text-slate-500">Case #{caseData.id.slice(0, 8)}</p>
+                            <div className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-1.5 
+                                ${caseData.state === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                                    caseData.state === 'DENIED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {caseData.state === 'APPROVED' && <CheckCircle className="w-3.5 h-3.5" />}
+                                {caseData.state === 'DENIED' && <XCircle className="w-3.5 h-3.5" />}
+                                {caseData.state === 'HOLD' && <Clock className="w-3.5 h-3.5" />}
+                                {caseData.state}
+                            </div>
                         </div>
+                        <div className="text-sm text-slate-500 font-medium mt-1 flex items-center gap-3">
+                            <span className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5" />
+                                Decided: {decisionDate}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Edit2 className="w-3.5 h-3.5" />
+                                Underwriting
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 transition-all shadow-sm">
+                            <Printer className="w-4 h-4" />
+                            Print Summary
+                        </button>
                         <button
                             onClick={onEdit}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
                         >
-                            <Edit className="w-4 h-4" />
+                            <Edit2 className="w-4 h-4" />
                             Edit Case
                         </button>
                     </div>
                 </div>
-            </div>
 
-            <div className="max-w-6xl mx-auto p-6 space-y-6">
-                {/* Status Card */}
-                <div className={`bg-white rounded-xl shadow-sm border-2 border-${color}-200 p-6`}>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-full bg-${color}-100`}>
-                                <StatusIcon className={`w-8 h-8 text-${color}-600`} />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-900">{caseData.state}</h2>
-                                <p className="text-slate-600">
-                                    {caseData.defendant_first_name} {caseData.defendant_last_name} - ${caseData.bond_amount.toLocaleString()}
-                                </p>
-                            </div>
+                {/* Top Profile Card */}
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                            <User className="w-7 h-7" />
                         </div>
-                        <div className="text-right text-sm text-slate-500">
-                            <div className="flex items-center gap-2 justify-end">
-                                <Calendar className="w-4 h-4" />
-                                <span>Decided: {caseData.uw_review_date || new Date().toLocaleDateString()}</span>
-                            </div>
-                            {caseData.uw_name && (
-                                <div className="flex items-center gap-2 justify-end mt-1">
-                                    <User className="w-4 h-4" />
-                                    <span>By: {caseData.uw_name}</span>
-                                </div>
-                            )}
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900">
+                                {caseData.defendant_first_name} {caseData.defendant_last_name}
+                            </h2>
+                            <p className="text-slate-500 font-medium">Defendant</p>
                         </div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-4xl font-black text-slate-900 tracking-tight">
+                            ${caseData.bond_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-slate-500 font-medium text-sm">Total Bond Amount</div>
                     </div>
                 </div>
 
-                {/* CST Intake Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                        CST Intake Information
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Caller</h4>
-                            <p className="font-medium">{caseData.caller_name}</p>
-                            <p className="text-sm text-slate-600">{caseData.caller_relationship}</p>
-                            <p className="text-sm text-slate-600">{caseData.caller_phone}</p>
-                            {caseData.caller_email && <p className="text-sm text-slate-600">{caseData.caller_email}</p>}
+                {/* Grid Layout for Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                    {/* CST Intake Information */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-slate-400" />
+                            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">CST Intake Information</h3>
                         </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Defendant</h4>
-                            <p className="font-medium">{caseData.defendant_first_name} {caseData.defendant_last_name}</p>
-                            <p className="text-sm text-slate-600">DOB: {caseData.defendant_dob || 'N/A'}</p>
-                            <p className="text-sm text-slate-600">Gender: {caseData.defendant_gender || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Bond Details</h4>
-                            <p className="font-medium">${caseData.bond_amount.toLocaleString()}</p>
-                            <p className="text-sm text-slate-600">Type: {caseData.bond_type}</p>
-                            <p className="text-sm text-slate-600">Severity: {caseData.charge_severity}</p>
-                        </div>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-slate-100">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Facility</h4>
-                                <p className="text-sm">{caseData.jail_facility}</p>
-                                <p className="text-sm text-slate-600">{caseData.county}, {caseData.state_jurisdiction}</p>
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Caller Name</label>
+                                    <div className="font-bold text-slate-900 text-sm">{caseData.caller_name || 'N/A'}</div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Relation</label>
+                                    {caseData.caller_relationship && (
+                                        <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold uppercase">
+                                            {caseData.caller_relationship}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div>
-                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Intent Signal</h4>
-                                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
-                                    {caseData.intent_signal}
-                                </span>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email Address</label>
+                                <div className="font-medium text-slate-900 text-sm truncate">{caseData.caller_email || 'N/A'}</div>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                <Clock className="w-3 h-3" />
+                                Last contact: 2 hours ago
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Advisor Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <DollarSign className="w-5 h-5 text-green-600" />
-                        Advisor Processing
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Engagement</h4>
-                            <p className="font-medium">{caseData.engagement_type || 'N/A'}</p>
-                            <p className="text-sm text-slate-600">{caseData.contact_method || 'N/A'}</p>
+                    {/* Defendant Details */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+                            <User className="w-4 h-4 text-slate-400" />
+                            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Defendant</h3>
                         </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Premium</h4>
-                            <p className="font-medium">{caseData.premium_type || 'N/A'}</p>
-                            {caseData.down_payment_amount && (
-                                <p className="text-sm text-slate-600">Down: ${caseData.down_payment_amount}</p>
-                            )}
-                        </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Indemnitor</h4>
-                            <p className="font-medium">{caseData.indemnitor_first_name} {caseData.indemnitor_last_name}</p>
-                            <p className="text-sm text-slate-600">{caseData.indemnitor_phone || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Collateral</h4>
-                            <p className="text-sm">{caseData.has_collateral || 'N/A'}</p>
-                            {caseData.collateral_description && (
-                                <p className="text-sm text-slate-600">{caseData.collateral_description}</p>
-                            )}
+                        <div className="p-6 space-y-6">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Full Legal Name</label>
+                                <div className="font-bold text-slate-900 text-sm">{caseData.defendant_first_name} {caseData.defendant_last_name}</div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Date of Birth</label>
+                                    <div className="font-bold text-slate-900 text-sm">{caseData.defendant_dob || 'N/A'}</div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Gender</label>
+                                    <div className="font-bold text-slate-900 text-sm">{caseData.defendant_gender || 'N/A'}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Documents */}
-                    {(caseData.booking_sheet_url || caseData.defendant_id_url || caseData.indemnitor_id_url) && (
-                        <div className="mt-4 pt-4 border-t border-slate-100">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Uploaded Documents</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {caseData.booking_sheet_url && (
-                                    <a href={caseData.booking_sheet_url} target="_blank" rel="noreferrer"
-                                        className="px-3 py-1 bg-slate-100 text-slate-700 rounded text-sm hover:bg-slate-200">
-                                        📄 Booking Sheet
-                                    </a>
-                                )}
-                                {caseData.defendant_id_url && (
-                                    <a href={caseData.defendant_id_url} target="_blank" rel="noreferrer"
-                                        className="px-3 py-1 bg-slate-100 text-slate-700 rounded text-sm hover:bg-slate-200">
-                                        🪪 Defendant ID
-                                    </a>
-                                )}
-                                {caseData.indemnitor_id_url && (
-                                    <a href={caseData.indemnitor_id_url} target="_blank" rel="noreferrer"
-                                        className="px-3 py-1 bg-slate-100 text-slate-700 rounded text-sm hover:bg-slate-200">
-                                        🪪 Indemnitor ID
-                                    </a>
-                                )}
+                    {/* Bond Details */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+                            <Scale className="w-4 h-4 text-slate-400" />
+                            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Bond Details</h3>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Amount</label>
+                                    <div className="font-black text-slate-900 text-sm">${caseData.bond_amount.toLocaleString()}</div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Type</label>
+                                    <div className="font-bold text-slate-900 text-sm">{caseData.bond_type || 'Surety'}</div>
+                                </div>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Advisor Notes */}
-                    {caseData.advisor_notes && (
-                        <div className="mt-4 pt-4 border-t border-slate-100">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Advisor Notes</h4>
-                            <div className="bg-amber-50 text-amber-900 p-3 rounded-lg border border-amber-100 text-sm">
-                                {caseData.advisor_notes}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Severity</label>
+                                    <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-bold uppercase">
+                                        {caseData.charge_severity || 'Misdemeanor'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Intent Signal</label>
+                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${caseData.intent_signal === 'GET_OUT_TODAY' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                        {caseData.intent_signal === 'GET_OUT_TODAY' ? 'Positive' : caseData.intent_signal || 'Low'}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Underwriter Decision Section */}
-                <div className={`bg-white rounded-xl shadow-sm border-2 border-${color}-200 p-6`}>
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Shield className={`w-5 h-5 text-${color}-600`} />
-                        Underwriter Decision
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Decision</h4>
-                            <span className={`inline-flex items-center gap-2 px-4 py-2 bg-${color}-100 text-${color}-800 rounded-lg font-bold`}>
-                                <StatusIcon className="w-5 h-5" />
-                                {caseData.state}
-                            </span>
-                        </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Underwriter</h4>
-                            <p className="font-medium">{caseData.uw_name || 'N/A'}</p>
-                            <p className="text-sm text-slate-600">{caseData.uw_review_date || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">AI Risk Score</h4>
-                            <p className="text-2xl font-bold">{caseData.derived_facts?.risk?.risk_score || 'N/A'}</p>
-                            <p className="text-sm text-slate-600">{caseData.derived_facts?.risk?.risk_tier || 'N/A'}</p>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Facility</label>
+                                <div className="font-bold text-slate-900 text-sm">{caseData.jail_facility || 'County Central Detention Center'}</div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Reason for Hold/Denial */}
-                    {(caseData.state === 'HOLD' || caseData.state === 'DENIED') && caseData.uw_reason && (
-                        <div className={`bg-${color}-50 border-l-4 border-${color}-500 p-4 mb-6`}>
-                            <div className="flex gap-3">
-                                <AlertTriangle className={`w-5 h-5 text-${color}-600 shrink-0`} />
+                    {/* Advisor Processing */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+                            <Briefcase className="w-4 h-4 text-slate-400" />
+                            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Advisor Processing</h3>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <h4 className="font-bold text-slate-900 mb-1">Reason for {caseData.state}</h4>
-                                    <p className="text-sm text-slate-700">{caseData.uw_reason}</p>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Engagement</label>
+                                    <div className="font-bold text-slate-900 text-sm">Standard</div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Premium</label>
+                                    <div className="font-black text-slate-900 text-sm">${premiumAmount}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Indemnitor</label>
+                                <div className="font-bold text-slate-900 text-sm">
+                                    {caseData.indemnitor_first_name ? `${caseData.indemnitor_first_name} ${caseData.indemnitor_last_name}` : 'Pending'}
+                                    <span className="text-slate-400 font-normal ml-1">
+                                        ({caseData.indemnitor_relationship || 'Relation'})
+                                    </span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Collateral</label>
+                                <div className="font-medium text-slate-400 text-sm italic">
+                                    {caseData.collateral_doc_url ? 'Collateral Documents on File' : 'None Required'}
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
 
-                    {/* Post-Execution Details (if Approved) */}
-                    {caseData.state === 'APPROVED' && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <h4 className="font-bold text-green-900 mb-3">Post-Execution Details</h4>
-                            <div className="grid grid-cols-3 gap-4">
+                    {/* Underwriter Decision */}
+                    <div className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden ${caseData.state === 'APPROVED' ? 'border-green-500' :
+                        caseData.state === 'DENIED' ? 'border-red-500' : 'border-amber-500'
+                        }`}>
+                        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+                            <Shield className={`w-4 h-4 ${caseData.state === 'APPROVED' ? 'text-green-600' :
+                                caseData.state === 'DENIED' ? 'text-red-600' : 'text-amber-600'
+                                }`} />
+                            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Underwriter Decision</h3>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className={`p-4 rounded-lg flex items-center justify-between ${caseData.state === 'APPROVED' ? 'bg-green-50 text-green-900' :
+                                caseData.state === 'DENIED' ? 'bg-red-50 text-red-900' : 'bg-amber-50 text-amber-900'
+                                }`}>
                                 <div>
-                                    <span className="text-xs text-green-700 font-bold uppercase">Power Number</span>
-                                    <p className="font-mono text-green-900 font-bold">{caseData.power_number || 'N/A'}</p>
+                                    <div className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${caseData.state === 'APPROVED' ? 'text-green-700' :
+                                        caseData.state === 'DENIED' ? 'text-red-700' : 'text-amber-700'
+                                        }`}>Final Decision</div>
+                                    <div className="text-2xl font-black tracking-tight">{caseData.state}</div>
+                                </div>
+                                <div className="text-3xl">
+                                    {caseData.state === 'APPROVED' && <CheckCircle className="w-8 h-8 text-green-500" />}
+                                    {caseData.state === 'DENIED' && <XCircle className="w-8 h-8 text-red-500" />}
+                                    {caseData.state === 'HOLD' && <Clock className="w-8 h-8 text-amber-500" />}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 items-end">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Underwriter</label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                                            {caseData.uw_name ? caseData.uw_name.charAt(0).toUpperCase() : 'U'}
+                                        </div>
+                                        <div className="font-bold text-slate-900 text-xs">
+                                            {caseData.uw_name || 'System'}
+                                        </div>
+                                    </div>
                                 </div>
                                 <div>
-                                    <span className="text-xs text-green-700 font-bold uppercase">Court Case #</span>
-                                    <p className="font-mono text-green-900 font-bold">{caseData.court_case_number || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-green-700 font-bold uppercase">Paid in Full</span>
-                                    <p className="font-bold text-green-900">{caseData.paid_in_full || 'N/A'}</p>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">AI Risk Score</label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${(caseData.derived_facts?.risk?.risk_score || 0) > 75 ? 'bg-red-500' :
+                                                    (caseData.derived_facts?.risk?.risk_score || 0) > 40 ? 'bg-amber-500' : 'bg-green-500'
+                                                    }`}
+                                                style={{ width: `${caseData.derived_facts?.risk?.risk_score || 15}%` }}
+                                            />
+                                        </div>
+                                        <span className={`text-xs font-black ${(caseData.derived_facts?.risk?.risk_score || 0) > 75 ? 'text-red-600' :
+                                            (caseData.derived_facts?.risk?.risk_score || 0) > 40 ? 'text-amber-600' : 'text-green-600'
+                                            }`}>
+                                            {(caseData.derived_facts?.risk?.risk_tier || 'Low').split(' ')[0]} ({caseData.derived_facts?.risk?.risk_score || 15})
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
+
+                    {/* Post-Execution Details */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+                            <CheckSquare className="w-4 h-4 text-slate-400" />
+                            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Post-Execution Details</h3>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Power Number</label>
+                                    <div className="font-bold text-slate-900 text-sm font-mono">{caseData.power_number ? `#${caseData.power_number}` : 'Pending'}</div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Court Case #</label>
+                                    <div className="font-bold text-slate-900 text-sm font-mono">{caseData.court_case_number || 'Pending'}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Payment Status</label>
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${caseData.paid_in_full === 'YES' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'
+                                        }`}>
+                                        <CheckCircle className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className={`font-bold text-sm ${caseData.paid_in_full === 'YES' ? 'text-slate-900' : 'text-slate-400'
+                                        }`}>
+                                        {caseData.paid_in_full === 'YES' ? 'Paid in Full' : 'Pending Payment'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>

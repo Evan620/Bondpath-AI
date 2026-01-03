@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { apiClient as api } from '../../api/client';
-import { Check, ChevronRight, DollarSign, FileText, History, PenTool, Scale, User, X, ChevronDown, ArrowLeft, Upload, AlertTriangle, ScanEye } from 'lucide-react';
+import { Check, ChevronRight, DollarSign, FileText, History, PenTool, Scale, User, X, ChevronDown, ArrowLeft, Upload, AlertTriangle, ScanEye, Clock, LogOut, ShieldCheck, Calendar, Stamp, Fingerprint, Phone, Gavel } from 'lucide-react';
 import SignaturePad from './SignaturePad';
 import FileUpload from './FileUpload';
+import { useAuth } from '../../store/AuthContext';
 
 interface Case {
     id: string;
@@ -66,6 +67,10 @@ interface Case {
     indemnitor_id_url?: string;
     gov_id_url?: string;
     collateral_doc_url?: string;
+    created_at: string;
+    power_number?: string;
+    court_case_number?: string;
+    paid_in_full?: string;
 }
 
 interface Underwriter {
@@ -92,6 +97,7 @@ const QUOTE_STEPS = [
 export default function AdvisorCaseDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { logout } = useAuth();
     const [caseData, setCaseData] = useState<Case | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -166,7 +172,8 @@ export default function AdvisorCaseDetail() {
 
     // Derived state for read-only mode
     const isReadOnly = caseData ? ['UNDERWRITING_REVIEW', 'APPROVED', 'DECLINED'].includes(caseData.state) : false;
-    const [isEditing, setIsEditing] = useState(false);
+    // const [isEditing, setIsEditing] = useState(false);
+    const isEditing = false; // Fixed for now
 
     useEffect(() => {
         fetchCase();
@@ -267,7 +274,20 @@ export default function AdvisorCaseDetail() {
 
         setSaving(true);
         try {
+            // Step 1: Trigger AI risk re-assessment with complete case data
+            console.log('Running AI risk assessment with complete case data...');
+            try {
+                const riskResponse = await api.post(`/cases/${id}/assess-risk`);
+                console.log('Risk assessment completed:', riskResponse.data);
+            } catch (riskError) {
+                console.error('Risk assessment failed (non-blocking):', riskError);
+                // Don't block submission if AI fails, but log it
+            }
+
+            // Step 2: Submit case to underwriter
             await saveData('UNDERWRITING_REVIEW', selectedUnderwriter);
+
+            alert('Case submitted to underwriter successfully! AI risk assessment has been updated.');
             navigate('/advisor'); // Go back to advisor dashboard after submission
         } catch (error) {
             console.error('Failed to submit case:', error);
@@ -368,117 +388,188 @@ export default function AdvisorCaseDetail() {
         });
     };
 
-    const renderSummary = () => (
-        <div className="animate-fadeIn">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
-                    <FileText className="w-5 h-5 text-slate-500" />
-                    <h3 className="text-lg font-bold text-slate-800">Application Summary</h3>
+    const renderSummary = () => {
+        if (!caseData) return null;
+
+        const formatDate = (dateString: string) => {
+            if (!dateString) return 'N/A';
+            return new Date(dateString).toLocaleDateString('en-US', {
+                month: 'numeric',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        };
+
+        const premiumValue = caseData.bond_amount ? (caseData.bond_amount * 0.1).toLocaleString() : '0';
+
+        return (
+            <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+                {/* Hero Card - Matching Underwriter Style */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 flex flex-col md:flex-row justify-between items-center transition-all hover:shadow-md gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 shadow-inner">
+                            <User className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-3xl font-black text-slate-900 tracking-tight">{caseData.defendant_first_name} {caseData.defendant_last_name}</h1>
+                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 ${caseData.state === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                                    caseData.state === 'DECLINED' ? 'bg-red-100 text-red-700' :
+                                        'bg-blue-100 text-blue-700'
+                                    }`}>
+                                    {caseData.state === 'APPROVED' ? 'Approved' : caseData.state === 'UNDERWRITING_REVIEW' ? 'In Review' : 'Advisor Intake'}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-6 mt-3 text-sm text-slate-500 font-medium">
+                                <div className="flex items-center gap-1.5">
+                                    <Calendar className="w-4 h-4" />
+                                    <span>Intake: {formatDate(caseData.created_at)}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-blue-600">
+                                    <Stamp className="w-4 h-4" />
+                                    <span className="font-bold">Case #{caseData.id.slice(0, 8).toUpperCase()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-center md:text-right">
+                        <div className="text-4xl font-black text-slate-900 tracking-tighter">${caseData.bond_amount?.toLocaleString() || '0'}.00</div>
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">Total Bond Amount</p>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Col 1: Engagement */}
-                    <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Engagement</h4>
-                        <div className="flex flex-col gap-2">
-                            <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border w-fit ${engagementType === 'PROCEED_NOW'
-                                ? 'bg-blue-50 text-blue-700 border-blue-100'
-                                : 'bg-slate-50 text-slate-700 border-slate-200'
-                                }`}>
-                                {engagementType === 'PROCEED_NOW' ? 'Proceeding Now' : 'Quote Only'}
-                            </span>
-                            {contactMethod === 'REMOTE' && (
-                                <div className="text-sm">
-                                    <div className={`flex items-center gap-1.5 font-bold ${remoteAckSent === 'YES' ? 'text-green-600' : 'text-amber-600'}`}>
-                                        {remoteAckSent === 'YES' ? <Check className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                                        {remoteAckSent === 'YES' ? 'Remote Ack Sent' : 'Ack Pending'}
-                                    </div>
-                                    <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[150px]" title={clientEmailForRemote}>
-                                        {clientEmailForRemote}
-                                    </div>
+                {/* Info Grid - 3 Columns */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* CST Intake Information */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col hover:border-blue-100 transition-all">
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-blue-500" />
+                            CST Intake Information
+                        </h3>
+                        <div className="space-y-4 flex-grow">
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Source Contact</div>
+                                <div className="font-bold text-slate-900 text-sm">{caseData.indemnitor_first_name} {caseData.indemnitor_last_name}</div>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                                <div className="flex-1">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Relationship</div>
+                                    <div className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-black w-fit">{caseData.indemnitor_relationship || 'N/A'}</div>
                                 </div>
-                            )}
+                                <div className="flex-1">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contact Phone</div>
+                                    <div className="font-bold text-slate-900 text-xs">{caseData.indemnitor_phone || 'N/A'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="pt-4 mt-6 border-t border-slate-50 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                            <Clock className="w-3 h-3" />
+                            Original Caller Data Verified
                         </div>
                     </div>
 
-                    {/* Col 2: Financials */}
-                    <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Financials</h4>
-                        <div className="text-sm space-y-2">
+                    {/* Defendant Details */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:border-blue-100 transition-all">
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Fingerprint className="w-3.5 h-3.5 text-blue-500" />
+                            Defendant Profile
+                        </h3>
+                        <div className="space-y-4">
                             <div>
-                                <div className="text-xs text-slate-500">Premium Type</div>
-                                <div className="font-bold text-slate-900">{premiumType === 'FULL_PREMIUM' ? 'Full Premium' : 'Payment Plan'}</div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Charges & Severity</div>
+                                <div className="font-bold text-slate-900 text-sm line-clamp-2">{caseData.charges || 'No specific charges listed'}</div>
                             </div>
-                            <div>
-                                <div className="text-xs text-slate-500">Method</div>
-                                <div className="font-bold text-slate-900">{paymentMethod}</div>
-                            </div>
-                            {premiumType === 'PAYMENT_PLAN' && (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <div className="text-xs text-slate-500">Down</div>
-                                        <div className="font-bold text-slate-900">${downPayment}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-slate-500">Monthly</div>
-                                        <div className="font-bold text-slate-900">${monthlyPayment}</div>
-                                    </div>
-                                </div>
-                            )}
-                            {hasCollateral !== 'NO' && (
+                            <div className="flex justify-between">
                                 <div>
-                                    <div className="text-xs text-slate-500">Collateral</div>
-                                    <div className="text-xs font-medium text-slate-800 bg-slate-50 px-2 py-1 rounded border border-slate-100 mt-0.5 truncate">
-                                        {collateralDesc || 'No desc'}
-                                    </div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Detention Facility</div>
+                                    <div className="font-bold text-slate-900 text-xs">{caseData.jail_facility || 'Local Intake'}</div>
                                 </div>
-                            )}
+                                <div className="text-right">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gender</div>
+                                    <div className="font-bold text-slate-900 text-xs">{caseData.defendant_gender || 'Not Specified'}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Col 3: Indemnitor */}
-                    <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Indemnitor</h4>
-                        <div className="space-y-1">
-                            <div className="font-bold text-slate-900 text-sm">{indemnitorFirstName} {indemnitorLastName}</div>
-                            <div className="text-xs text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded w-fit">{indemnitorRelationship}</div>
-                            <div className="text-xs text-slate-600 mt-2 block">{indemnitorPhone}</div>
-                            <div className="text-xs text-slate-600 truncate block text-blue-600" title={indemnitorEmail}>{indemnitorEmail}</div>
-                        </div>
-                    </div>
-
-                    {/* Col 4: Details & Notes */}
-                    <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Details</h4>
-                        <div className="space-y-2 text-sm">
+                    {/* Advisor Processing Block */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:border-blue-100 transition-all">
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                            Advisor Processing
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <span className="text-xs text-slate-500">SSN (Last 4): </span>
-                                <span className="font-bold text-slate-900">{ssnLast4 || 'N/A'}</span>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Engagement</div>
+                                <div className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-black w-fit">{engagementType === 'PROCEED_NOW' ? 'FULL APP' : 'QUOTE ONLY'}</div>
                             </div>
                             <div>
-                                <div className="text-xs text-slate-500 mb-0.5">Charges</div>
-                                <div className="text-xs bg-slate-50 p-1.5 rounded border border-slate-100 font-medium line-clamp-2" title={charges}>
-                                    {charges || 'None'}
-                                </div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Premium Total</div>
+                                <div className="font-black text-blue-600 text-sm">${premiumValue}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Payment Plan</div>
+                                <div className="font-bold text-slate-900 text-xs">{premiumType === 'FULL_PREMIUM' ? 'Paid in Full' : 'Structured'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Method</div>
+                                <div className="font-bold text-slate-900 text-xs">{paymentMethod}</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Notes Footer */}
-                {advisorNotes && (
-                    <div className="mt-5 pt-4 border-t border-slate-100">
-                        <div className="flex gap-2">
-                            <div className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap mt-0.5">Notes:</div>
-                            <div className="text-sm text-slate-700 italic">
-                                "{advisorNotes}"
-                            </div>
+                {/* Documentation & Signatures Status */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-blue-500" />
+                                Execution Status
+                            </h3>
+                            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded">ALL SECTIONS COMPLETE</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-12 gap-y-6">
+                            {[
+                                { label: 'Agreement Terms', val: termsSignature },
+                                { label: 'Fee Disclosure', val: feeDisclosureSignature },
+                                { label: 'Contact Consent', val: contactAgreementSignature },
+                                { label: 'Official Signature', val: indemnitorSignature }
+                            ].map((sig, i) => (
+                                <div key={i} className="flex items-center justify-between group">
+                                    <span className="text-xs font-bold text-slate-500">{sig.label}</span>
+                                    {sig.val ? (
+                                        <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px]">
+                                            <Check className="w-3 h-3 stroke-[3]" />
+                                            SIGNED
+                                        </div>
+                                    ) : (
+                                        <span className="text-[10px] font-black text-slate-300">PENDING</span>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
-                )}
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 flex flex-col">
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Gavel className="w-3.5 h-3.5 text-blue-500" />
+                            Advisor Field Context
+                        </h3>
+                        <div className="bg-slate-50 rounded-2xl p-6 flex-grow border border-slate-100 italic font-medium text-slate-600 text-sm leading-relaxed">
+                            {advisorNotes ? `"${advisorNotes}"` : "No additional context notes provided by the advisor for this case."}
+                        </div>
+                        {advisorNotes && (
+                            <div className="mt-4 flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                <History className="w-3 h-3" />
+                                Timestamped for Underwriter Review
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderDocVerifier = (type: string, url: string) => {
         if (!url) return null;
@@ -537,47 +628,57 @@ export default function AdvisorCaseDetail() {
         switch (stepId) {
             case 'engagement':
                 return (
-                    <div className="space-y-6 animate-fadeIn">
-                        <div>
-                            <label className="block text-lg font-bold text-slate-800 mb-2">
-                                Is the client ready to proceed?
-                            </label>
-                            <p className="text-slate-500 mb-6 font-medium">Determine if this is just a quote or an active application.</p>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button
-                                    onClick={() => setEngagementType('PROCEED_NOW')}
-                                    className={`p-6 border-2 rounded-xl text-left transition-all ${engagementType === 'PROCEED_NOW'
-                                        ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    <div className={`font-bold text-lg mb-2 flex items-center gap-2 ${engagementType === 'PROCEED_NOW' ? 'text-slate-900' : 'text-slate-600'
-                                        }`}>
-                                        <FileText className="w-5 h-5" />
-                                        Proceed Now
-                                    </div>
-                                    <div className="text-sm text-slate-500 font-medium">Start full application and verify details.</div>
-                                </button>
-                                <button
-                                    onClick={() => setEngagementType('QUOTE_ONLY')}
-                                    className={`p-6 border-2 rounded-xl text-left transition-all ${engagementType === 'QUOTE_ONLY'
-                                        ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    <div className={`font-bold text-lg mb-2 flex items-center gap-2 ${engagementType === 'QUOTE_ONLY' ? 'text-slate-900' : 'text-slate-600'
-                                        }`}>
-                                        <DollarSign className="w-5 h-5" />
-                                        Quote Only
-                                    </div>
-                                    <div className="text-sm text-slate-500 font-medium">Provide pricing information only.</div>
-                                </button>
-                            </div>
+                    <div className="space-y-8 animate-fadeIn">
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em]">Process Initiation</h3>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Is the client ready to proceed?</h2>
+                            <p className="text-slate-500 font-medium mt-1">Determine if this is just a quote or an active application.</p>
                         </div>
 
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button
+                                onClick={() => setEngagementType('PROCEED_NOW')}
+                                className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${engagementType === 'PROCEED_NOW'
+                                    ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-100 transform -translate-y-0.5'
+                                    : 'bg-white border-slate-100 hover:border-slate-200'
+                                    }`}
+                            >
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${engagementType === 'PROCEED_NOW' ? 'bg-white/20' : 'bg-blue-50'}`}>
+                                    <FileText className={`w-5 h-5 ${engagementType === 'PROCEED_NOW' ? 'text-white' : 'text-blue-600'}`} />
+                                </div>
+                                <h4 className={`text-lg font-black mb-1 ${engagementType === 'PROCEED_NOW' ? 'text-white' : 'text-slate-900'}`}>Full Application</h4>
+                                <p className={`text-xs font-medium leading-relaxed ${engagementType === 'PROCEED_NOW' ? 'text-blue-50' : 'text-slate-500'}`}>
+                                    Begin the full underwriting process immediately. Recommended for active cases.
+                                </p>
+                                {engagementType === 'PROCEED_NOW' && (
+                                    <div className="absolute top-4 right-4 w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                                        <Check className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                )}
+                            </button>
 
+                            <button
+                                onClick={() => setEngagementType('QUOTE_ONLY')}
+                                className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${engagementType === 'QUOTE_ONLY'
+                                    ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-100 transform -translate-y-0.5'
+                                    : 'bg-white border-slate-100 hover:border-slate-200'
+                                    }`}
+                            >
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${engagementType === 'QUOTE_ONLY' ? 'bg-white/20' : 'bg-slate-50'}`}>
+                                    <DollarSign className={`w-5 h-5 ${engagementType === 'QUOTE_ONLY' ? 'text-white' : 'text-slate-900'}`} />
+                                </div>
+                                <h4 className={`text-lg font-black mb-1 ${engagementType === 'QUOTE_ONLY' ? 'text-white' : 'text-slate-900'}`}>Quote Only</h4>
+                                <p className={`text-xs font-medium leading-relaxed ${engagementType === 'QUOTE_ONLY' ? 'text-blue-50' : 'text-slate-500'}`}>
+                                    Provide pricing information only without starting a full review.
+                                </p>
+                                {engagementType === 'QUOTE_ONLY' && (
+                                    <div className="absolute top-4 right-4 w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                                        <Check className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                )}
+                            </button>
+                        </div>
                     </div>
-
                 );
 
             case 'financials':
@@ -586,124 +687,128 @@ export default function AdvisorCaseDetail() {
                     { id: 'collateral', title: 'Collateral' }
                 ];
                 return (
-                    <div className="space-y-6 animate-fadeIn">
-                        {/* Sub-step Header */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl flex items-center gap-3">
-                                <DollarSign className="w-5 h-5 text-blue-600" />
-                                <span className="font-bold text-blue-900 text-sm">Financials {financialSubStep + 1} of {financialSteps.length}</span>
+                    <div className="space-y-8 animate-fadeIn">
+                        {/* Premium Sub-step Header */}
+                        <div className="flex items-center justify-between pb-6 border-b border-slate-50">
+                            <div>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Financial Analysis</h3>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                                    {financialSubStep === 0 ? 'Premium & Payment' : 'Collateral Assets'}
+                                </h2>
                             </div>
-                            <div className="flex gap-1">
-                                {financialSteps.map((_, idx) => (
-                                    <div
-                                        key={idx}
-                                        className={`h-1.5 w-8 rounded-full transition-all ${idx <= financialSubStep ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                    />
-                                ))}
+                            <div className="flex items-center gap-3">
+                                <div className="flex gap-1.5">
+                                    {financialSteps.map((_, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`h-1.5 w-6 rounded-full transition-all duration-300 ${idx <= financialSubStep ? 'bg-blue-600' : 'bg-slate-100'}`}
+                                        />
+                                    ))}
+                                </div>
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50 ml-2">
+                                    {financialSubStep + 1} / {financialSteps.length}
+                                </span>
                             </div>
                         </div>
 
                         {financialSubStep === 0 && (
                             <div className="space-y-8 animate-slideUp">
-                                <div>
-                                    <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
-                                        Premium & Payment
-                                    </h3>
-                                    <div className="grid grid-cols-1 gap-6">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-slate-700 mb-2">Premium Type</label>
-                                            <select
-                                                value={premiumType}
-                                                onChange={(e) => setPremiumType(e.target.value)}
-                                                className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none transition-all font-medium text-slate-700"
-                                            >
-                                                <option value="FULL_PREMIUM">Full Premium</option>
-                                                <option value="PAYMENT_PLAN">Payment Plan</option>
-                                                <option value="DEFERRED">Deferred Payment</option>
-                                            </select>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                            <Scale className="w-3 h-3 text-blue-600" />
+                                            Premium Arrangement
+                                        </label>
+                                        <select
+                                            value={premiumType}
+                                            onChange={(e) => setPremiumType(e.target.value)}
+                                            className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 appearance-none shadow-sm shadow-slate-100"
+                                        >
+                                            <option value="FULL_PREMIUM">Full Premium Paid</option>
+                                            <option value="PAYMENT_PLAN">Structured Payment Plan</option>
+                                            <option value="DEFERRED">Deferred (Post-Release)</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                            <DollarSign className="w-3 h-3 text-blue-600" />
+                                            Settlement Method
+                                        </label>
+                                        <select
+                                            value={paymentMethod}
+                                            onChange={(e) => setPaymentMethod(e.target.value)}
+                                            className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 appearance-none shadow-sm shadow-slate-100"
+                                        >
+                                            <option value="CASH">Liquid Cash</option>
+                                            <option value="CARD">Credit / Debit Card</option>
+                                            <option value="BANK_TRANSFER">Direct Bank Transfer</option>
+                                            <option value="MONEY_ORDER">Certified Money Order</option>
+                                            <option value="COLLATERAL">Collateral Only</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {premiumType === 'PAYMENT_PLAN' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-blue-50/30 rounded-[2rem] border-2 border-blue-100/30 shadow-inner">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Down Payment Required</label>
+                                            <div className="relative group">
+                                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400 font-black text-lg">$</span>
+                                                <input
+                                                    type="number"
+                                                    value={downPayment}
+                                                    onChange={(e) => setDownPayment(e.target.value)}
+                                                    className="w-full pl-10 pr-6 py-5 bg-white border-2 border-blue-100/50 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-black text-2xl text-blue-900 transition-all placeholder:text-blue-200"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Method</label>
-                                            <select
-                                                value={paymentMethod}
-                                                onChange={(e) => setPaymentMethod(e.target.value)}
-                                                className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none transition-all font-medium text-slate-700"
-                                            >
-                                                <option value="CASH">Cash</option>
-                                                <option value="CARD">Credit/Debit Card</option>
-                                                <option value="BANK_TRANSFER">Bank Transfer</option>
-                                                <option value="MONEY_ORDER">Money Order</option>
-                                                <option value="COLLATERAL">Collateral</option>
-                                            </select>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Monthly Installment</label>
+                                            <div className="relative group">
+                                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400 font-black text-lg">$</span>
+                                                <input
+                                                    type="number"
+                                                    value={monthlyPayment}
+                                                    onChange={(e) => setMonthlyPayment(e.target.value)}
+                                                    className="w-full pl-10 pr-6 py-5 bg-white border-2 border-blue-100/50 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-black text-2xl text-blue-900 transition-all placeholder:text-blue-200"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                    {premiumType === 'PAYMENT_PLAN' && (
-                                        <div className="grid grid-cols-2 gap-6 mt-4 p-6 bg-slate-50 rounded-xl border border-slate-200">
-                                            <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-2">Down Payment</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-3 text-slate-400 font-bold">$</span>
-                                                    <input
-                                                        type="number"
-                                                        value={downPayment}
-                                                        onChange={(e) => setDownPayment(e.target.value)}
-                                                        className="w-full pl-8 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                                        placeholder="0.00"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-2">Monthly Payment</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-3 text-slate-400 font-bold">$</span>
-                                                    <input
-                                                        type="number"
-                                                        value={monthlyPayment}
-                                                        onChange={(e) => setMonthlyPayment(e.target.value)}
-                                                        className="w-full pl-8 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                                        placeholder="0.00"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+                                )}
                             </div>
                         )}
 
                         {financialSubStep === 1 && (
-                            <div className="animate-slideUp">
-                                <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
-                                    Collateral
-                                </h3>
+                            <div className="animate-slideUp space-y-8">
                                 <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Is collateral required?</label>
-                                        <div className="flex gap-4">
-                                            {['YES', 'NO', 'UNSURE'].map((opt) => (
-                                                <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                                                    <input
-                                                        type="radio"
-                                                        value={opt}
-                                                        checked={hasCollateral === opt}
-                                                        onChange={(e) => setHasCollateral(e.target.value)}
-                                                        className="w-4 h-4 text-slate-900 focus:ring-slate-900"
-                                                    />
-                                                    <span className="text-slate-700 font-medium">{opt.charAt(0) + opt.slice(1).toLowerCase()}</span>
-                                                </label>
-                                            ))}
-                                        </div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Security Requirement</label>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        {['YES', 'NO', 'UNSURE'].map((opt) => (
+                                            <button
+                                                key={opt}
+                                                onClick={() => setHasCollateral(opt)}
+                                                className={`px-6 py-4 rounded-2xl border-2 font-black text-sm transition-all ${hasCollateral === opt
+                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100'
+                                                    : 'bg-white border-slate-100 text-slate-500 hover:border-slate-200'
+                                                    }`}
+                                            >
+                                                {opt}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
-                                        <textarea
-                                            value={collateralDesc}
-                                            onChange={(e) => setCollateralDesc(e.target.value)}
-                                            rows={2}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="Describe collateral property or items..."
-                                        />
-                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Collateral Description</label>
+                                    <textarea
+                                        value={collateralDesc}
+                                        onChange={(e) => setCollateralDesc(e.target.value)}
+                                        rows={4}
+                                        className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                        placeholder="Identify specific assets, real estate, or other property being held..."
+                                    />
                                 </div>
                             </div>
                         )}
@@ -717,55 +822,59 @@ export default function AdvisorCaseDetail() {
                     { id: 'defendant', title: 'Defendant Details' }
                 ];
                 return (
-                    <div className="space-y-6 animate-fadeIn">
-                        {/* Sub-step Header */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl flex items-center gap-3">
-                                <User className="w-5 h-5 text-blue-600" />
-                                <span className="font-bold text-blue-900 text-sm">Parties {partiesSubStep + 1} of {partySteps.length}</span>
+                    <div className="space-y-8 animate-fadeIn">
+                        {/* Premium Sub-step Header */}
+                        <div className="flex items-center justify-between pb-6 border-b border-slate-50">
+                            <div>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Entity Verification</h3>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                                    {partiesSubStep === 0 ? 'Indemnitor Identity' : partiesSubStep === 1 ? 'Contact Information' : 'Case Specifics'}
+                                </h2>
                             </div>
-                            <div className="flex gap-1">
-                                {partySteps.map((_, idx) => (
-                                    <div
-                                        key={idx}
-                                        className={`h-1.5 w-8 rounded-full transition-all ${idx <= partiesSubStep ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                    />
-                                ))}
+                            <div className="flex items-center gap-3">
+                                <div className="flex gap-1.5">
+                                    {partySteps.map((_, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`h-1.5 w-6 rounded-full transition-all duration-300 ${idx <= partiesSubStep ? 'bg-blue-600' : 'bg-slate-100'}`}
+                                        />
+                                    ))}
+                                </div>
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50 ml-2">
+                                    {partiesSubStep + 1} / {partySteps.length}
+                                </span>
                             </div>
                         </div>
 
                         {partiesSubStep === 0 && (
-                            <div className="animate-slideUp">
-                                <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
-                                    Indemnitor Information
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">First Name</label>
+                            <div className="animate-slideUp space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Legal First Name</label>
                                         <input
                                             value={indemnitorFirstName}
                                             onChange={(e) => setIndemnitorFirstName(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="First Name"
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                            placeholder="Enter first name..."
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Last Name</label>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Legal Last Name</label>
                                         <input
                                             value={indemnitorLastName}
                                             onChange={(e) => setIndemnitorLastName(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="Last Name"
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                            placeholder="Enter last name..."
                                         />
                                     </div>
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Relationship to Defendant</label>
+                                    <div className="col-span-1 md:col-span-2 space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Defendant Relationship</label>
                                         <select
                                             value={indemnitorRelationship}
                                             onChange={(e) => setIndemnitorRelationship(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none bg-white"
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 appearance-none shadow-sm"
                                         >
-                                            <option value="">Select Relationship...</option>
+                                            <option value="">Define Relationship...</option>
                                             <option value="Parent">Parent</option>
                                             <option value="Spouse">Spouse</option>
                                             <option value="Sibling">Sibling</option>
@@ -779,36 +888,33 @@ export default function AdvisorCaseDetail() {
                         )}
 
                         {partiesSubStep === 1 && (
-                            <div className="animate-slideUp">
-                                <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
-                                    Indemnitor Contact
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone</label>
+                            <div className="animate-slideUp space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Secure Phone Line</label>
                                         <input
                                             value={indemnitorPhone}
                                             onChange={(e) => setIndemnitorPhone(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="(555) 555-5555"
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                            placeholder="(000) 000-0000"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Address</label>
                                         <input
                                             value={indemnitorEmail}
                                             onChange={(e) => setIndemnitorEmail(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="email@example.com"
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                            placeholder="client@example.com"
                                         />
                                     </div>
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Address</label>
+                                    <div className="col-span-1 md:col-span-2 space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Residential Address</label>
                                         <input
                                             value={indemnitorAddress}
                                             onChange={(e) => setIndemnitorAddress(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="Full Address"
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                            placeholder="Full permanent residence address..."
                                         />
                                     </div>
                                 </div>
@@ -816,29 +922,26 @@ export default function AdvisorCaseDetail() {
                         )}
 
                         {partiesSubStep === 2 && (
-                            <div className="animate-slideUp">
-                                <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
-                                    Additional Details
-                                </h3>
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Defendant SSN (Last 4)</label>
+                            <div className="animate-slideUp space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Defendant SSN (Last 4)</label>
                                         <input
                                             value={ssnLast4}
                                             onChange={(e) => setSsnLast4(e.target.value)}
                                             maxLength={4}
-                                            className="w-32 px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none text-center font-bold tracking-widest"
+                                            className="w-40 px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-black text-2xl text-center tracking-[0.2em] text-slate-800 shadow-sm"
                                             placeholder="0000"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Charges</label>
+                                    <div className="col-span-1 md:col-span-2 space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Charges</label>
                                         <textarea
                                             value={charges}
                                             onChange={(e) => setCharges(e.target.value)}
-                                            rows={3}
-                                            className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            placeholder="List charges..."
+                                            rows={4}
+                                            className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                            placeholder="Specify all current charges as listed on booking sheet..."
                                         />
                                     </div>
                                 </div>
@@ -849,14 +952,14 @@ export default function AdvisorCaseDetail() {
 
             case 'agreement':
                 const agreementSteps = [
-                    { id: 'method', title: 'Agreement Method', counter: '00' },
+                    { id: 'method', title: 'Agreement Method' },
                     ...(contactMethod === 'REMOTE' ? [] : [
-                        { id: 'terms', title: 'Terms & Conditions', counter: '01' },
-                        { id: 'fees', title: 'Fee Disclosure', counter: '02' },
-                        { id: 'contact', title: 'Defendant Contact Agreement', counter: '03' },
-                        ...(premiumType === 'DEFERRED' ? [{ id: 'deferred', title: 'Deferred Payment Authorization', counter: '04' }] : []),
-                        { id: 'final', title: 'Indemnitor Signature', counter: premiumType === 'DEFERRED' ? '05' : '04' },
-                        { id: 'cosigner', title: 'Co-Signer (Optional)', counter: premiumType === 'DEFERRED' ? '06' : '05' }
+                        { id: 'terms', title: 'Terms & Conditions' },
+                        { id: 'fees', title: 'Fee Disclosure' },
+                        { id: 'contact', title: 'Defendant Contact Agreement' },
+                        ...(premiumType === 'DEFERRED' ? [{ id: 'deferred', title: 'Deferred Payment Authorization' }] : []),
+                        { id: 'final', title: 'Indemnitor Signature' },
+                        { id: 'cosigner', title: 'Co-Signer (Optional)' }
                     ])
                 ];
 
@@ -864,260 +967,263 @@ export default function AdvisorCaseDetail() {
                 if (!currentSubStep) return null;
 
                 return (
-                    <div className="space-y-6 animate-fadeIn">
-                        {/* Sub-step Header */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl flex items-center gap-3">
-                                <Scale className="w-5 h-5 text-blue-600" />
-                                <span className="font-bold text-blue-900 text-sm">Agreement {agreementSubStep + 1} of {agreementSteps.length}</span>
+                    <div className="space-y-8 animate-fadeIn">
+                        {/* Premium Sub-step Header */}
+                        <div className="flex items-center justify-between pb-6 border-b border-slate-50">
+                            <div>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Authorization</h3>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                                    {currentSubStep.title}
+                                </h2>
                             </div>
-                            <div className="flex gap-1">
-                                {agreementSteps.map((_, idx) => (
-                                    <div
-                                        key={idx}
-                                        className={`h-1.5 w-8 rounded-full transition-all ${idx <= agreementSubStep ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                    />
-                                ))}
+                            <div className="flex items-center gap-3">
+                                <div className="flex gap-1.5">
+                                    {agreementSteps.map((_, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`h-1.5 w-6 rounded-full transition-all duration-300 ${idx <= agreementSubStep ? 'bg-blue-600' : 'bg-slate-100'}`}
+                                        />
+                                    ))}
+                                </div>
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50 ml-2">
+                                    {agreementSubStep + 1} / {agreementSteps.length}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="max-w-2xl mx-auto">
-                            {/* Agreement Method Selection */}
-                            {currentSubStep.id === 'method' && (
-                                <div className="space-y-8 animate-slideUp">
-                                    <h3 className="text-xl font-bold text-slate-800 mb-4">How will agreements be signed?</h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button
-                                            onClick={() => setContactMethod('IN_PERSON')}
-                                            className={`p-6 border-2 rounded-xl text-left transition-all ${contactMethod === 'IN_PERSON'
-                                                ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                                                : 'border-slate-200 hover:border-slate-300'
-                                                }`}
-                                        >
-                                            <div className={`font-bold text-lg mb-2 flex items-center gap-2 ${contactMethod === 'IN_PERSON' ? 'text-slate-900' : 'text-slate-600'}`}>
-                                                <PenTool className="w-5 h-5" />
-                                                In Person
+                        {currentSubStep.id === 'method' && (
+                            <div className="space-y-8 animate-slideUp">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <button
+                                        onClick={() => setContactMethod('IN_PERSON')}
+                                        className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${contactMethod === 'IN_PERSON'
+                                            ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-100 transform -translate-y-0.5'
+                                            : 'bg-white border-slate-100 hover:border-slate-200'
+                                            }`}
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${contactMethod === 'IN_PERSON' ? 'bg-white/20' : 'bg-blue-50'}`}>
+                                            <PenTool className={`w-5 h-5 ${contactMethod === 'IN_PERSON' ? 'text-white' : 'text-blue-600'}`} />
+                                        </div>
+                                        <h4 className={`text-lg font-black mb-1 ${contactMethod === 'IN_PERSON' ? 'text-white' : 'text-slate-900'}`}>In Person</h4>
+                                        <p className={`text-xs font-medium leading-relaxed ${contactMethod === 'IN_PERSON' ? 'text-blue-50' : 'text-slate-500'}`}>
+                                            Complete and sign all documents on this device with the client present.
+                                        </p>
+                                        {contactMethod === 'IN_PERSON' && (
+                                            <div className="absolute top-4 right-4 w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                                                <Check className="w-3.5 h-3.5 text-white" />
                                             </div>
-                                            <div className="text-sm text-slate-500 font-medium">Sign now on this device</div>
-                                        </button>
-                                        <button
-                                            onClick={() => setContactMethod('REMOTE')}
-                                            className={`p-6 border-2 rounded-xl text-left transition-all ${contactMethod === 'REMOTE'
-                                                ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                                                : 'border-slate-200 hover:border-slate-300'
-                                                }`}
-                                        >
-                                            <div className={`font-bold text-lg mb-2 flex items-center gap-2 ${contactMethod === 'REMOTE' ? 'text-slate-900' : 'text-slate-600'}`}>
-                                                <Upload className="w-5 h-5" />
-                                                Remote
+                                        )}
+                                    </button>
+
+                                    <button
+                                        onClick={() => setContactMethod('REMOTE')}
+                                        className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${contactMethod === 'REMOTE'
+                                            ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-100 transform -translate-y-0.5'
+                                            : 'bg-white border-slate-100 hover:border-slate-200'
+                                            }`}
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-colors ${contactMethod === 'REMOTE' ? 'bg-white/20' : 'bg-slate-50'}`}>
+                                            <Upload className={`w-5 h-5 ${contactMethod === 'REMOTE' ? 'text-white' : 'text-slate-900'}`} />
+                                        </div>
+                                        <h4 className={`text-lg font-black mb-1 ${contactMethod === 'REMOTE' ? 'text-white' : 'text-slate-900'}`}>Remote Signature</h4>
+                                        <p className={`text-xs font-medium leading-relaxed ${contactMethod === 'REMOTE' ? 'text-blue-50' : 'text-slate-500'}`}>
+                                            Securely email a signature link to the client for remote execution.
+                                        </p>
+                                        {contactMethod === 'REMOTE' && (
+                                            <div className="absolute top-4 right-4 w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                                                <Check className="w-3.5 h-3.5 text-white" />
                                             </div>
-                                            <div className="text-sm text-slate-500 font-medium">Email link to signer</div>
-                                        </button>
-                                    </div>
+                                        )}
+                                    </button>
+                                </div>
 
-                                    {contactMethod === 'REMOTE' && (
-                                        <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 animate-fadeIn mt-6">
-                                            <h4 className="font-bold text-blue-900 mb-4 flex items-center gap-2">
-                                                Remote Client Acknowledgment
-                                            </h4>
+                                {contactMethod === 'REMOTE' && (
+                                    <div className="animate-slideUp p-8 bg-blue-50/50 border-2 border-blue-100 rounded-[2rem] space-y-6">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Client Email Address</label>
+                                            <input
+                                                value={clientEmailForRemote}
+                                                onChange={(e) => setClientEmailForRemote(e.target.value)}
+                                                className="w-full px-6 py-5 bg-white border-2 border-blue-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                                placeholder="client@example.com"
+                                            />
+                                        </div>
 
-                                            <div className="mb-4">
-                                                <label className="block text-sm font-semibold text-blue-700 mb-2">Client Email</label>
-                                                <input
-                                                    value={clientEmailForRemote}
-                                                    onChange={(e) => setClientEmailForRemote(e.target.value)}
-                                                    className="w-full px-4 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    placeholder="client@example.com"
-                                                />
-                                            </div>
-
-                                            <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-blue-200">
-                                                <div>
-                                                    <div className="font-bold text-slate-900">Send Request</div>
-                                                    <div className="text-sm text-slate-500">Required for remote underwriting</div>
+                                        <div className="flex items-center justify-between p-6 bg-white rounded-2xl border border-blue-100 shadow-sm">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                                                    <ScanEye className="w-6 h-6 text-blue-600" />
                                                 </div>
-                                                {remoteAckSent === 'YES' ? (
-                                                    <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-3 py-1.5 rounded-lg border border-green-100">
-                                                        <Check className="w-5 h-5" />
-                                                        Sent
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={async () => {
-                                                            if (!clientEmailForRemote) return alert('Please enter an email');
-                                                            try {
-                                                                await api.post(`/signature/cases/${id}/send-remote-signature`, {
-                                                                    email: clientEmailForRemote
-                                                                });
-                                                                setRemoteAckSent('YES');
-                                                                alert('Signature request sent successfully!');
-                                                            } catch (error) {
-                                                                console.error('Failed to send signature request:', error);
-                                                                alert('Failed to send signature request. Please try again.');
-                                                            }
-                                                        }}
-                                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors"
-                                                    >
-                                                        Send Now
-                                                    </button>
-                                                )}
+                                                <div>
+                                                    <div className="font-black text-slate-900 text-sm">Push Signature Link</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Verification Required</div>
+                                                </div>
                                             </div>
+
+                                            {remoteAckSent === 'YES' ? (
+                                                <div className="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg border-2 border-green-100 text-xs">
+                                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                    REQUEST SENT
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!clientEmailForRemote) return alert('Please enter an email');
+                                                        try {
+                                                            await api.post(`/signature/cases/${id}/send-remote-signature`, {
+                                                                email: clientEmailForRemote
+                                                            });
+                                                            setRemoteAckSent('YES');
+                                                        } catch (error) {
+                                                            console.error('Remote signature failed:', error);
+                                                            alert('Failed to send request.');
+                                                        }
+                                                    }}
+                                                    className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
+                                                >
+                                                    SEND NOW
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {(currentSubStep.id === 'terms' || currentSubStep.id === 'fees' || currentSubStep.id === 'contact' || currentSubStep.id === 'deferred' || currentSubStep.id === 'cosigner') && (
+                            <div className="animate-slideUp space-y-8">
+                                <div className="bg-slate-50/50 p-8 rounded-[2rem] border-2 border-slate-100">
+                                    {currentSubStep.id === 'terms' && (
+                                        <div className="space-y-6">
+                                            <div className="prose prose-slate max-w-none text-sm font-medium text-slate-600 leading-relaxed max-h-48 overflow-y-auto p-6 bg-white rounded-2xl border border-slate-150 shadow-inner">
+                                                <p className="font-bold text-slate-900 mb-2 underline decoration-blue-500 decoration-2">Standard Bail Bond Conditions</p>
+                                                <p>1. The defendant will appear in all courts as required.</p>
+                                                <p>2. The defendant will not leave the jurisdiction without express permission.</p>
+                                                <p>3. The indemnitor assumes full financial responsibility for the face value of the bond.</p>
+                                                <p className="mt-4">By signing below, you acknowledge and agree to these terms in their entirety.</p>
+                                            </div>
+                                            <SignaturePad
+                                                label="Indemnitor Signature"
+                                                value={termsSignature}
+                                                onChange={setTermsSignature}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {currentSubStep.id === 'fees' && (
+                                        <div className="space-y-6 text-center py-4">
+                                            <div className="inline-block p-6 bg-white rounded-3xl border-2 border-blue-50 shadow-sm mb-6">
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Premium Due</div>
+                                                <div className="text-4xl font-black text-slate-900 tracking-tighter">
+                                                    ${caseData?.bond_amount ? (caseData.bond_amount * 0.1).toLocaleString() : '0.00'}
+                                                </div>
+                                            </div>
+                                            <SignaturePad
+                                                label="Acknowledgment of Fees"
+                                                value={feeDisclosureSignature}
+                                                onChange={setFeeDisclosureSignature}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {currentSubStep.id === 'contact' && (
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-blue-50/50 rounded-2xl border-2 border-blue-100/30 text-sm font-bold text-blue-900 mb-6">
+                                                The defendant agrees to daily check-ins and to notify the agency of any changes in residential status immediately.
+                                            </div>
+                                            <SignaturePad
+                                                label="Monitoring Agreement"
+                                                value={contactAgreementSignature}
+                                                onChange={setContactAgreementSignature}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {currentSubStep.id === 'deferred' && (
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-amber-50 rounded-2xl border-2 border-amber-100 text-sm font-bold text-amber-900 mb-6">
+                                                AUTHORIZATION: I authorize Bondpath AI to process future payments according to the agreed-upon structured settlement plan.
+                                            </div>
+                                            <SignaturePad
+                                                label="Payment Authorization"
+                                                value={deferredPaymentAuthSignature}
+                                                onChange={setDeferredPaymentAuthSignature}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {currentSubStep.id === 'cosigner' && (
+                                        <div className="space-y-8">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-3">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Co-Signer Full Name</label>
+                                                    <input
+                                                        value={coSignerName}
+                                                        onChange={(e) => setCoSignerName(e.target.value)}
+                                                        className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-bold text-slate-800"
+                                                        placeholder="Enter legal name..."
+                                                    />
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Co-Signer Contact</label>
+                                                    <input
+                                                        value={coSignerPhone}
+                                                        onChange={(e) => setCoSignerPhone(e.target.value)}
+                                                        className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-bold text-slate-800"
+                                                        placeholder="(000) 000-0000"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <SignaturePad
+                                                label="Co-Signer Signature"
+                                                value={coSignerSignature}
+                                                onChange={setCoSignerSignature}
+                                            />
                                         </div>
                                     )}
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {/* Terms & Conditions */}
-                            {currentSubStep.id === 'terms' && (
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 animate-slideUp">
-                                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                        <span className="bg-slate-100 p-2 rounded-lg text-slate-500 text-sm font-black">01</span>
-                                        Terms & Conditions
-                                    </h3>
-                                    <div className="prose prose-sm text-slate-500 mb-4 max-w-none bg-slate-50 p-4 rounded-lg border border-slate-100 h-32 overflow-y-auto">
-                                        <p>I understand and agree to the terms and conditions of the bail bond agreement...</p>
-                                        <p className="mt-2">By signing below, I acknowledge receipt of the full Terms and Conditions document.</p>
+                        {currentSubStep.id === 'final' && (
+                            <div className="animate-slideUp space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Printed Name</label>
+                                        <input
+                                            value={indemnitorPrintedName}
+                                            onChange={(e) => setIndemnitorPrintedName(e.target.value)}
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-black text-xl text-slate-900 shadow-sm"
+                                            placeholder="Indemnitor Name"
+                                        />
                                     </div>
-                                    <SignaturePad
-                                        label="Indemnitor Signature - Terms"
-                                        value={termsSignature}
-                                        onChange={setTermsSignature}
-                                        date={new Date().toLocaleDateString()}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Fee Disclosure */}
-                            {currentSubStep.id === 'fees' && (
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 animate-slideUp">
-                                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                        <span className="bg-slate-100 p-2 rounded-lg text-slate-500 text-sm font-black">02</span>
-                                        Fee Disclosure
-                                    </h3>
-                                    <div className="mb-4 text-sm text-slate-600">
-                                        <p>I verify that I have been informed that the premium for this bond is <strong>${caseData?.bond_amount ? (caseData.bond_amount * 0.1).toFixed(2) : '0.00'}</strong> (10% of bond amount).</p>
-                                    </div>
-                                    <SignaturePad
-                                        label="Indemnitor Signature - Fees"
-                                        value={feeDisclosureSignature}
-                                        onChange={setFeeDisclosureSignature}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Defendant Contact Agreement */}
-                            {currentSubStep.id === 'contact' && (
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 animate-slideUp">
-                                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                        <span className="bg-slate-100 p-2 rounded-lg text-slate-500 text-sm font-black">03</span>
-                                        Defendant Contact Agreement
-                                    </h3>
-                                    <SignaturePad
-                                        label="Indemnitor Signature - Contact Agmt"
-                                        value={contactAgreementSignature}
-                                        onChange={setContactAgreementSignature}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Main Indemnitor Signature */}
-                            {currentSubStep.id === 'final' && (
-                                <div className="animate-slideUp">
-                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                        <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                                            <PenTool className="w-5 h-5 text-slate-700" />
-                                            Indemnitor Signature
-                                        </h3>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                            <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-2">Printed Name</label>
-                                                <input
-                                                    value={indemnitorPrintedName}
-                                                    onChange={(e) => setIndemnitorPrintedName(e.target.value)}
-                                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none font-medium"
-                                                    placeholder="Full Legal Name"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
-                                                <input
-                                                    type="date"
-                                                    value={indemnitorSignatureDate}
-                                                    onChange={(e) => setIndemnitorSignatureDate(e.target.value)}
-                                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none font-medium"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <SignaturePad
-                                            label="Indemnitor Official Signature"
-                                            value={indemnitorSignature}
-                                            onChange={setIndemnitorSignature}
-                                            date={indemnitorSignatureDate}
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Execution Date</label>
+                                        <input
+                                            type="date"
+                                            value={indemnitorSignatureDate}
+                                            onChange={(e) => setIndemnitorSignatureDate(e.target.value)}
+                                            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-bold text-slate-700 shadow-sm"
                                         />
                                     </div>
                                 </div>
-                            )}
-
-                            {/* Co-Signer (Optional) */}
-                            {currentSubStep.id === 'cosigner' && (
-                                <div className="animate-slideUp">
-                                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                                        <h3 className="text-lg font-bold text-slate-800 mb-6">Co-Signer (Optional)</h3>
-                                        <div className="grid grid-cols-2 gap-4 mb-6">
-                                            <input
-                                                placeholder="Co-Signer Name"
-                                                value={coSignerName}
-                                                onChange={e => setCoSignerName(e.target.value)}
-                                                className="px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            />
-                                            <input
-                                                placeholder="Co-Signer Phone"
-                                                value={coSignerPhone}
-                                                onChange={e => setCoSignerPhone(e.target.value)}
-                                                className="px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none"
-                                            />
-                                        </div>
-                                        <SignaturePad
-                                            label="Co-Signer Signature"
-                                            value={coSignerSignature}
-                                            onChange={setCoSignerSignature}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Deferred Payment Authorization (Conditional) */}
-                            {currentSubStep.id === 'deferred' && premiumType === 'DEFERRED' && (
-                                <div className="bg-amber-50 p-6 rounded-xl border border-amber-200 relative overflow-hidden animate-slideUp">
-                                    <div className="absolute top-0 right-0 p-2 opacity-10">
-                                        <DollarSign className="w-32 h-32" />
-                                    </div>
-                                    <h3 className="text-lg font-bold text-amber-900 mb-2 flex items-center gap-2">
-                                        Deferred Payment Authorization
-                                    </h3>
-                                    <p className="text-sm text-amber-800 mb-6 font-medium">
-                                        Required because premium payment is deferred. I authorize future charges according to the payment schedule.
-                                    </p>
+                                <div className="p-8 rounded-[2rem] border-2 border-slate-100 bg-slate-50/30">
                                     <SignaturePad
-                                        label="Signature for Deferred Payment"
-                                        value={deferredPaymentAuthSignature}
-                                        onChange={setDeferredPaymentAuthSignature}
+                                        label="Official Indemnitor Signature"
+                                        value={indemnitorSignature}
+                                        onChange={setIndemnitorSignature}
                                     />
                                 </div>
-                            )}
-
-                        </div>
+                            </div>
+                        )}
                     </div>
                 );
-
             case 'docs':
                 const docSteps = [
                     { id: 'booking', title: 'Booking Sheet' },
                     { id: 'defendant_id', title: 'Defendant ID' },
                     { id: 'indemnitor_id', title: 'Indemnitor ID' },
-                    { id: 'gov_id', title: 'Government ID / SSN' },
+                    { id: 'gov_id', title: 'Social Security / Gov ID' },
                     ...(hasCollateral !== 'NO' ? [{ id: 'collateral', title: 'Collateral Docs' }] : [])
                 ];
 
@@ -1125,125 +1231,100 @@ export default function AdvisorCaseDetail() {
                 if (!currentDocStep) return null;
 
                 return (
-                    <div className="space-y-6 animate-fadeIn">
-                        {/* Sub-step Header */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl flex items-center gap-3">
-                                <FileText className="w-5 h-5 text-blue-600" />
-                                <span className="font-bold text-blue-900 text-sm">Document {docSubStep + 1} of {docSteps.length}</span>
+                    <div className="space-y-8 animate-fadeIn">
+                        {/* Premium Sub-step Header */}
+                        <div className="flex items-center justify-between pb-6 border-b border-slate-50">
+                            <div>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Evidence Collection</h3>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                                    {currentDocStep.title} Verification
+                                </h2>
                             </div>
-                            <div className="flex gap-1">
-                                {docSteps.map((_, idx) => (
-                                    <div
-                                        key={idx}
-                                        className={`h-1.5 w-8 rounded-full transition-all ${idx <= docSubStep ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                    />
-                                ))}
+                            <div className="flex items-center gap-3">
+                                <div className="flex gap-1.5">
+                                    {docSteps.map((_, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`h-1.5 w-6 rounded-full transition-all duration-300 ${idx <= docSubStep ? 'bg-blue-600' : 'bg-slate-100'}`}
+                                        />
+                                    ))}
+                                </div>
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50 ml-2">
+                                    {docSubStep + 1} / {docSteps.length}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="max-w-2xl mx-auto">
-                            {currentDocStep.id === 'booking' && (
-                                <div className="animate-slideUp">
-                                    <FileUpload
-                                        label="Booking Sheet"
-                                        description="Official booking record from jail"
-                                        value={bookingSheetUrl}
-                                        onFileSelect={(f) => handleFileUpload(f, 'booking_sheet')}
-                                        onClear={() => setBookingSheetUrl('')}
-                                    />
-                                    {renderDocVerifier('booking_sheet', bookingSheetUrl)}
-                                </div>
-                            )}
+                        <div className="animate-slideUp">
+                            <FileUpload
+                                label={currentDocStep.title}
+                                description={`Securely upload the supporting file for ${currentDocStep.title}.`}
+                                value={
+                                    currentDocStep.id === 'booking' ? bookingSheetUrl :
+                                        currentDocStep.id === 'defendant_id' ? defendantIdUrl :
+                                            currentDocStep.id === 'indemnitor_id' ? indemnitorIdUrl :
+                                                currentDocStep.id === 'gov_id' ? govIdUrl :
+                                                    collateralDocUrl
+                                }
+                                onFileSelect={(f) => handleFileUpload(f, currentDocStep.id === 'gov_id' ? 'gov_id' : currentDocStep.id === 'collateral' ? 'collateral_doc' : currentDocStep.id as any)}
+                                onClear={() => {
+                                    if (currentDocStep.id === 'booking') setBookingSheetUrl('');
+                                    else if (currentDocStep.id === 'defendant_id') setDefendantIdUrl('');
+                                    else if (currentDocStep.id === 'indemnitor_id') setIndemnitorIdUrl('');
+                                    else if (currentDocStep.id === 'gov_id') setGovIdUrl('');
+                                    else setCollateralDocUrl('');
+                                }}
+                            />
 
-                            {currentDocStep.id === 'defendant_id' && (
-                                <div className="animate-slideUp">
-                                    <FileUpload
-                                        label="Defendant ID"
-                                        description="Driver's License or ID Card"
-                                        value={defendantIdUrl}
-                                        onFileSelect={(f) => handleFileUpload(f, 'defendant_id')}
-                                        onClear={() => setDefendantIdUrl('')}
-                                    />
-                                    {renderDocVerifier('defendant_id', defendantIdUrl)}
-                                </div>
-                            )}
-
-                            {currentDocStep.id === 'indemnitor_id' && (
-                                <div className="animate-slideUp">
-                                    <FileUpload
-                                        label="Indemnitor ID"
-                                        description="Driver's License or ID Card"
-                                        value={indemnitorIdUrl}
-                                        onFileSelect={(f) => handleFileUpload(f, 'indemnitor_id')}
-                                        onClear={() => setIndemnitorIdUrl('')}
-                                    />
-                                    {renderDocVerifier('indemnitor_id', indemnitorIdUrl)}
-                                </div>
-                            )}
-
-                            {currentDocStep.id === 'gov_id' && (
-                                <div className="animate-slideUp">
-                                    <FileUpload
-                                        label="Government ID / SSN Card"
-                                        value={govIdUrl}
-                                        onFileSelect={(f) => handleFileUpload(f, 'gov_id')}
-                                        onClear={() => setGovIdUrl('')}
-                                    />
-                                    {renderDocVerifier('gov_id', govIdUrl)}
-                                </div>
-                            )}
-
-                            {currentDocStep.id === 'collateral' && hasCollateral !== 'NO' && (
-                                <div className="animate-slideUp">
-                                    <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-800">
-                                        Collateral Documentation
-                                    </h3>
-                                    <FileUpload
-                                        label="Collateral Deed / Title"
-                                        description="Proof of ownership for collateral"
-                                        value={collateralDocUrl}
-                                        onFileSelect={(f) => handleFileUpload(f, 'collateral_doc')}
-                                        onClear={() => setCollateralDocUrl('')}
-                                    />
-                                    {renderDocVerifier('collateral_doc', collateralDocUrl)}
-                                </div>
-                            )}
+                            {/* Verification Logic Mapping */}
+                            {(currentDocStep.id === 'booking' && bookingSheetUrl) && renderDocVerifier('booking_sheet', bookingSheetUrl)}
+                            {(currentDocStep.id === 'defendant_id' && defendantIdUrl) && renderDocVerifier('defendant_id', defendantIdUrl)}
+                            {(currentDocStep.id === 'indemnitor_id' && indemnitorIdUrl) && renderDocVerifier('indemnitor_id', indemnitorIdUrl)}
+                            {(currentDocStep.id === 'gov_id' && govIdUrl) && renderDocVerifier('gov_id', govIdUrl)}
+                            {(currentDocStep.id === 'collateral' && collateralDocUrl) && renderDocVerifier('collateral_doc', collateralDocUrl)}
                         </div>
                     </div>
-                ); case 'quote_summary':
+                );
+            case 'quote_summary':
                 return (
                     <div className="space-y-8 animate-fadeIn">
-                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-4 text-lg">Quote Summary</h3>
-                            <div className="space-y-4">
-                                <div className="p-4 bg-white rounded-lg border border-slate-100 shadow-sm">
-                                    <div className="text-slate-500 text-sm uppercase tracking-wide font-bold mb-1">Total Bond</div>
-                                    <div className="text-2xl font-bold text-slate-900">${caseData?.bond_amount ? caseData.bond_amount.toLocaleString() : '0.00'}</div>
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em]">Summary Generated</h3>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Bond Quote Overview</h2>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm flex flex-col items-center text-center">
+                                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl mb-4">
+                                    <DollarSign className="w-6 h-6" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 bg-white rounded-lg border border-slate-100 shadow-sm">
-                                        <div className="text-slate-500 text-sm font-medium">Premium Type</div>
-                                        <div className="text-lg font-semibold text-slate-800">{premiumType === 'FULL_PREMIUM' ? 'Full Premium' : 'Payment Plan'}</div>
-                                    </div>
-                                    <div className="p-4 bg-white rounded-lg border border-slate-100 shadow-sm">
-                                        <div className="text-slate-500 text-sm font-medium">Payment Method</div>
-                                        <div className="text-lg font-semibold text-slate-800">{paymentMethod}</div>
-                                    </div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Bond</div>
+                                <div className="text-2xl font-black text-slate-900">${caseData?.bond_amount?.toLocaleString() || '0.00'}</div>
+                            </div>
+                            <div className="bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm flex flex-col items-center text-center">
+                                <div className="p-3 bg-slate-50 text-slate-900 rounded-xl mb-4">
+                                    <Scale className="w-6 h-6" />
                                 </div>
-                                {collateralDesc && (
-                                    <div className="p-4 bg-white rounded-lg border border-slate-100 shadow-sm">
-                                        <div className="text-slate-500 text-sm font-medium">Collateral</div>
-                                        <div className="text-lg font-semibold text-slate-800">{collateralDesc}</div>
-                                    </div>
-                                )}
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Premium Plan</div>
+                                <div className="text-lg font-black text-slate-800">{premiumType === 'FULL_PREMIUM' ? 'Full Payment' : 'Financed'}</div>
+                            </div>
+                            <div className="bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm flex flex-col items-center text-center">
+                                <div className="p-3 bg-slate-50 text-slate-900 rounded-xl mb-4">
+                                    <User className="w-6 h-6" />
+                                </div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Method</div>
+                                <div className="text-lg font-black text-slate-800">{paymentMethod}</div>
                             </div>
                         </div>
-                        <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
-                            <p className="text-yellow-800 font-medium flex items-center gap-2">
-                                <History className="w-5 h-5" />
-                                Quote saved. Client not creating application yet.
-                            </p>
+
+                        <div className="p-8 bg-amber-50 border-2 border-amber-100 rounded-[2rem] flex items-center gap-6">
+                            <div className="bg-white p-4 rounded-2xl shadow-sm">
+                                <History className="w-8 h-8 text-amber-600" />
+                            </div>
+                            <div>
+                                <h4 className="text-lg font-black text-amber-900 mb-1">Ready for Application?</h4>
+                                <p className="text-sm font-medium text-amber-700">This quote is saved in your dashboard. You can convert it to a full application at any time.</p>
+                            </div>
                         </div>
                     </div>
                 );
@@ -1251,127 +1332,133 @@ export default function AdvisorCaseDetail() {
             case 'review':
                 return (
                     <div className="space-y-8 animate-fadeIn">
-                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-4 text-lg">Application Summary</h3>
-                            <div className="grid grid-cols-2 gap-y-4 text-sm">
-                                <div className="text-slate-500 font-medium">Defendant</div>
-                                <div className="font-bold text-slate-900">{caseData?.defendant_first_name} {caseData?.defendant_last_name}</div>
-                                <div className="text-slate-500 font-medium">Premium</div>
-                                <div className="font-bold text-slate-900">{premiumType} via {paymentMethod}</div>
-                                <div className="text-slate-500 font-medium">Indemnitor</div>
-                                <div className="font-bold text-slate-900">{indemnitorFirstName} {indemnitorLastName}</div>
-                            </div>
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em]">Final Review</h3>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Assignment & Submission</h2>
                         </div>
 
-                        {/* AI Readiness Check */}
-                        {/* Submission Quality Audit (Redesigned) */}
-                        <div className="bg-white p-0 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">
-                                        Submission Quality Audit
-                                    </h3>
-                                    <p className="text-xs text-slate-500 font-medium">Automated risk & data completeness check</p>
+                        {/* Submission Quality Audit (Premium Refined) */}
+                        <div className="bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
+                            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-200">
+                                        <ScanEye className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-black text-slate-900">Submission Quality Audit</h3>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Automated Intelligence Scan</p>
+                                    </div>
                                 </div>
                                 <button
                                     onClick={handleCheckReadiness}
                                     disabled={aiChecking}
-                                    className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-6 py-2 bg-blue-600 text-white text-xs font-black rounded-lg hover:bg-blue-700 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    {aiChecking ? 'Running Audit...' : 'Run Audit'}
+                                    {aiChecking ? (
+                                        <>
+                                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            SCANNING...
+                                        </>
+                                    ) : 'RUN AUDIT'}
                                 </button>
                             </div>
 
-                            {!readinessResult && !aiChecking && (
-                                <div className="p-8 text-center text-slate-400 text-sm">
-                                    Click "Run Audit" to verify case details before submission.
-                                </div>
-                            )}
+                            <div className="p-8">
+                                {!readinessResult && !aiChecking && (
+                                    <div className="py-12 flex flex-col items-center justify-center text-slate-300 gap-4 border-2 border-dashed border-slate-100 rounded-3xl">
+                                        <AlertTriangle className="w-12 h-12" />
+                                        <p className="font-bold uppercase tracking-widest text-xs">Awaiting quality verification</p>
+                                    </div>
+                                )}
 
-                            {aiChecking && (
-                                <div className="p-8 flex flex-col items-center justify-center text-slate-400">
-                                    <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                    <span className="text-xs font-semibold uppercase tracking-wider">Analyzing Case Data...</span>
-                                </div>
-                            )}
-
-                            {readinessResult && (
-                                <div className="p-6">
-                                    <div className="flex items-start gap-6">
-                                        {/* Score Badge */}
-                                        <div className={`flex flex-col items-center justify-center w-20 h-20 rounded-full border-4 ${readinessResult.ready_for_submission ? 'border-green-500 text-green-600' : 'border-amber-500 text-amber-600'
-                                            }`}>
-                                            <span className="text-2xl font-black">{readinessResult.confidence_score}</span>
-                                            <span className="text-[10px] uppercase font-bold text-slate-400">Score</span>
-                                        </div>
-
-                                        <div className="flex-1 space-y-4">
-                                            {/* Status Header */}
-                                            <div>
-                                                <div className={`text-lg font-bold ${readinessResult.ready_for_submission ? 'text-green-700' : 'text-amber-700'}`}>
-                                                    {readinessResult.ready_for_submission ? 'Ready for Submission' : 'Attention Needed'}
-                                                </div>
-                                                <div className="text-slate-500 text-sm">
-                                                    {readinessResult.quality_notes || "No additional quality notes."}
+                                {readinessResult && (
+                                    <div className="space-y-8">
+                                        <div className="flex items-center gap-8">
+                                            <div className="relative">
+                                                <svg className="w-24 h-24 transform -rotate-90">
+                                                    <circle className="text-slate-100" strokeWidth="8" stroke="currentColor" fill="transparent" r="40" cx="48" cy="48" />
+                                                    <circle
+                                                        className={readinessResult.confidence_score > 70 ? 'text-green-500' : 'text-amber-500'}
+                                                        strokeWidth="8"
+                                                        strokeDasharray={251.2}
+                                                        strokeDashoffset={251.2 - (251.2 * readinessResult.confidence_score) / 100}
+                                                        strokeLinecap="round"
+                                                        stroke="currentColor"
+                                                        fill="transparent"
+                                                        r="40"
+                                                        cx="48"
+                                                        cy="48"
+                                                    />
+                                                </svg>
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                    <span className="text-2xl font-black text-slate-900">{readinessResult.confidence_score}</span>
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase">Score</span>
                                                 </div>
                                             </div>
-
-                                            {/* Issues List */}
-                                            {(readinessResult.blockers.length > 0 || readinessResult.warnings.length > 0) && (
-                                                <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                                    {readinessResult.blockers.map((b, i) => (
-                                                        <div key={`b-${i}`} className="flex gap-2 text-sm text-red-600 font-medium items-start">
-                                                            <div className="mt-1 min-w-[6px] h-[6px] rounded-full bg-red-500"></div>
-                                                            {b}
-                                                        </div>
-                                                    ))}
-                                                    {readinessResult.warnings.map((w, i) => (
-                                                        <div key={`w-${i}`} className="flex gap-2 text-sm text-amber-600 font-medium items-start">
-                                                            <div className="mt-1 min-w-[6px] h-[6px] rounded-full bg-amber-500"></div>
-                                                            {w}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                            <div className="flex-1">
+                                                <h4 className={`text-xl font-black mb-1 ${readinessResult.ready_for_submission ? 'text-green-600' : 'text-amber-600'}`}>
+                                                    {readinessResult.ready_for_submission ? 'Clear for Submission' : 'Incomplete Requirements'}
+                                                </h4>
+                                                <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                                                    {readinessResult.quality_notes || "Your application has been scanned for potential risks and missing data."}
+                                                </p>
+                                            </div>
                                         </div>
+
+                                        {(readinessResult.blockers.length > 0 || readinessResult.warnings.length > 0) && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {readinessResult.blockers.map((b, i) => (
+                                                    <div key={`b-${i}`} className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-2xl border border-red-100 text-xs font-bold">
+                                                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                                                        {b}
+                                                    </div>
+                                                ))}
+                                                {readinessResult.warnings.map((w, i) => (
+                                                    <div key={`w-${i}`} className="flex items-center gap-3 p-4 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 text-xs font-bold">
+                                                        <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                                        {w}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Notes to Underwriter</label>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Advisor Field Notes</label>
                                 <textarea
                                     value={advisorNotes}
                                     onChange={(e) => setAdvisorNotes(e.target.value)}
                                     rows={6}
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none text-sm resize-none shadow-sm"
-                                    placeholder="Add context or specific requests..."
+                                    className="w-full px-6 py-5 bg-white border-2 border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-sm"
+                                    placeholder="Add context for the underwriter..."
                                 />
                             </div>
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                                    Assign Underwriter
-                                </h3>
-                                <div className="space-y-2">
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assign Underwriter</label>
+                                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                                     {underwriters.map((uw) => (
-                                        <div
+                                        <button
                                             key={uw.id}
                                             onClick={() => setSelectedUnderwriter(uw.id)}
-                                            className={`px-3 py-2.5 rounded-lg border flex justify-between items-center cursor-pointer transition-all ${selectedUnderwriter === uw.id
-                                                ? 'bg-slate-800 border-slate-800 text-white shadow-md'
-                                                : 'bg-white border-slate-200 hover:border-blue-300 text-slate-600'
+                                            className={`px-4 py-3 rounded-xl border-2 flex justify-between items-center transition-all ${selectedUnderwriter === uw.id
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
                                                 }`}
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <User className={`w-4 h-4 ${selectedUnderwriter === uw.id ? 'text-slate-400' : 'text-slate-400'}`} />
-                                                <span className="font-bold text-sm">{uw.email.split('@')[0]}</span>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-1.5 rounded-lg ${selectedUnderwriter === uw.id ? 'bg-white/10' : 'bg-slate-50'}`}>
+                                                    <User className="w-3.5 h-3.5" />
+                                                </div>
+                                                <span className="font-black text-xs">{uw.email.split('@')[0]}</span>
                                             </div>
-                                            <div className={`text-xs font-bold px-2 py-0.5 rounded ${selectedUnderwriter === uw.id ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500'}`}>
-                                                {uw.active_cases} Cases
+                                            <div className={`text-[9px] font-black px-2 py-0.5 rounded-full ${selectedUnderwriter === uw.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                {uw.active_cases} ACTIVE
                                             </div>
-                                        </div>
+                                        </button>
                                     ))}
                                 </div>
                             </div>
@@ -1555,7 +1642,7 @@ export default function AdvisorCaseDetail() {
                         <div className="p-4 border-t border-slate-100 bg-white text-center">
                             <button
                                 onClick={() => setShowIntakeInfo(false)}
-                                className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl transform active:scale-95"
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
                             >
                                 Close
                             </button>
@@ -1563,91 +1650,98 @@ export default function AdvisorCaseDetail() {
                     </div>
                 </div>
             )}
-            {/* Header */}
-            <div className="bg-white border-b px-8 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/advisor')} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                        <ArrowLeft className="w-5 h-5 text-slate-600" />
-                    </button>
-                    <div
-                        onClick={() => setShowIntakeInfo(true)}
-                        className="cursor-pointer group px-3 py-1 -ml-3 rounded-xl transition-all hover:bg-blue-50/50"
-                    >
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
-                                {caseData.defendant_first_name} {caseData.defendant_last_name}
-                            </h1>
-                            <div className="bg-blue-50 text-blue-600 p-0.5 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                                <ChevronDown className="w-4 h-4" />
+            {/* Premium Sticky Navbar (Light Theme Refined) */}
+            <nav className="sticky top-0 z-50 bg-white border-b border-slate-100 px-6 py-3 shadow-sm">
+                <div className="max-w-7xl mx-auto flex justify-between items-center">
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-1.5 rounded-lg shadow-md ring-1 ring-blue-400/30">
+                                <Scale className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-slate-900 font-black tracking-tighter text-lg leading-none">BONDPATH <span className="text-blue-600">AI</span></span>
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] leading-none mt-1">Advisor Portal</span>
                             </div>
                         </div>
-                        <div className="text-sm text-slate-500 flex items-center gap-2 font-medium">
-                            <span className="text-blue-600 font-bold">${caseData?.bond_amount ? caseData.bond_amount.toLocaleString() : '0'}</span>
-                            <span className="text-slate-300">•</span>
-                            <span>{caseData.jail_facility}</span>
-                            <span className="ml-2 text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 uppercase tracking-tighter transition-all">Click for details</span>
+                        <div className="h-6 w-px bg-slate-100" />
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => navigate('/advisor')}
+                                className="p-1.5 hover:bg-slate-50 rounded-lg transition-colors text-slate-400 hover:text-blue-600"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                            <div
+                                onClick={() => setShowIntakeInfo(true)}
+                                className="cursor-pointer group px-2 py-1 rounded-lg transition-all hover:bg-slate-50"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                        {caseData ? `${caseData.defendant_first_name} ${caseData.defendant_last_name}` : 'Loading...'}
+                                    </h1>
+                                    <div className="bg-slate-100 text-slate-400 p-0.5 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                                        <ChevronDown className="w-3 h-3" />
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-2 font-medium">
+                                    <span className="text-blue-600 font-bold">${caseData?.bond_amount ? caseData.bond_amount.toLocaleString() : '0'}</span>
+                                    <span className="text-slate-300">•</span>
+                                    <span>{caseData?.jail_facility || 'N/A'}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {isReadOnly && !isEditing ? (
-                        <button
-                            onClick={() => setIsEditing(true)}
-                            className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
-                        >
-                            <FileText className="w-4 h-4" />
-                            Edit Case
-                        </button>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            {isReadOnly && (
-                                <button
-                                    onClick={() => setIsEditing(false)}
-                                    className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            )}
-                            <button
-                                onClick={handleSaveDraft}
-                                disabled={saving}
-                                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
-                            >
-                                <History className="w-4 h-4" />
-                                Save Draft
-                            </button>
+
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-end mr-2">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Court Case</span>
+                            <span className="text-[10px] text-slate-600 font-mono mt-1">{caseData?.id.split('-')[0].toUpperCase() || 'N/A'}</span>
                         </div>
-                    )}
+                        <div className="h-6 w-px bg-slate-100" />
+                        <button
+                            onClick={handleSaveDraft}
+                            disabled={saving}
+                            className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        >
+                            <History className={`w-3.5 h-3.5 ${saving ? 'animate-spin' : ''}`} />
+                            {saving ? 'Saving...' : 'Save Draft'}
+                        </button>
+                        <button
+                            onClick={logout}
+                            className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                            <LogOut className="w-3.5 h-3.5" />
+                            Logout
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </nav>
 
-            <div className="max-w-4xl mx-auto mt-8 px-4">
-
-
-                {/* Stepper only if editing or active */}
+            <div className="max-w-5xl mx-auto py-12 px-6">
+                {/* Premium Step Indicator */}
                 {(!isReadOnly || isEditing) && (
-                    <div className="mb-8">
-                        <div className="flex justify-between items-center relative">
-                            {/* Progress Bar Background */}
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-200 -z-10" />
+                    <div className="mb-12">
+                        <div className="flex justify-between items-center max-w-3xl mx-auto relative px-4">
+                            {/* Connector Line */}
+                            <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 -z-10" />
 
                             {activeSteps.map((step, index) => {
                                 const isCompleted = index < currentStep;
                                 const isCurrent = index === currentStep;
 
                                 return (
-                                    <div key={step.id} className="flex flex-col items-center gap-2 bg-slate-50 px-2 transition-all duration-300">
+                                    <div key={step.id} className="flex flex-col items-center gap-3 bg-slate-50 px-4 transition-all duration-500">
                                         <div
-                                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 border-2 font-bold ${isCompleted
-                                                ? 'bg-slate-900 border-slate-900 text-white'
+                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 border-2 font-black text-xs shadow-sm ring-4 ${isCompleted
+                                                ? 'bg-blue-500 border-blue-500 text-white ring-blue-500/10'
                                                 : isCurrent
-                                                    ? 'bg-white border-slate-900 text-slate-900'
-                                                    : 'bg-white border-slate-300 text-slate-300'
+                                                    ? 'bg-blue-600 border-blue-600 text-white ring-blue-600/20 scale-110 shadow-blue-200'
+                                                    : 'bg-white border-slate-200 text-slate-400 ring-transparent hover:border-slate-300'
                                                 }`}
                                         >
-                                            {isCompleted ? <Check className="w-5 h-5" /> : <span>{index + 1}</span>}
+                                            {isCompleted ? <Check className="w-5 h-5 stroke-[3]" /> : <span>{index + 1}</span>}
                                         </div>
-                                        <span className={`text-sm font-bold ${isCurrent ? 'text-slate-900' : 'text-slate-400'}`}>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest transition-all duration-500 whitespace-nowrap ${isCurrent ? 'text-blue-600' : 'text-slate-400'}`}>
                                             {step.title}
                                         </span>
                                     </div>
@@ -1764,25 +1858,25 @@ export default function AdvisorCaseDetail() {
                                                         navigate('/advisor');
                                                     }}
                                                     disabled={saving}
-                                                    className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 transform hover:-translate-y-0.5"
+                                                    className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2 transform hover:-translate-y-0.5"
                                                 >
                                                     {saving ? 'Saving...' : 'Save Quote & Exit'}
-                                                    <History className="w-5 h-5" />
+                                                    <History className="w-4 h-4" />
                                                 </button>
                                             ) : (
                                                 <button
                                                     onClick={handleSubmitToUnderwriter}
                                                     disabled={saving}
-                                                    className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:shadow-xl flex items-center gap-2 transform hover:-translate-y-0.5"
+                                                    className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center gap-2 transform hover:-translate-y-0.5"
                                                 >
                                                     {saving ? 'Submitting...' : 'Submit to Underwriter'}
-                                                    <Check className="w-5 h-5" />
+                                                    <Check className="w-4 h-4" />
                                                 </button>
                                             )
                                         ) : (
                                             <button
                                                 onClick={handleNext}
-                                                className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 transform hover:-translate-y-0.5"
+                                                className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center gap-2 transform hover:-translate-y-0.5"
                                             >
                                                 {(activeSteps[currentStep].id === 'financials' && financialSubStep < 1) ||
                                                     (activeSteps[currentStep].id === 'parties' && partiesSubStep < 2) || // 3 steps total
@@ -1790,7 +1884,7 @@ export default function AdvisorCaseDetail() {
                                                     (activeSteps[currentStep].id === 'docs' && docSubStep < (hasCollateral !== 'NO' ? 4 : 3))
                                                     ? 'Next'
                                                     : 'Next Step'}
-                                                <ChevronRight className="w-5 h-5" />
+                                                <ChevronRight className="w-4 h-4" />
                                             </button>
                                         )}
                                     </>

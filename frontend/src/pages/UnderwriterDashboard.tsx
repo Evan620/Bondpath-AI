@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient as api } from '../api/client';
 import { useAuth } from '../store/AuthContext';
-import { Clock, FileCheck } from 'lucide-react';
+import { Clock, User, Search, Filter, ArrowUpRight } from 'lucide-react';
 
 interface Case {
     id: string;
@@ -21,14 +21,17 @@ export default function UnderwriterDashboard() {
     const { logout } = useAuth();
     const [cases, setCases] = useState<Case[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8; // Adjust based on table density
 
     useEffect(() => {
         fetchCases();
 
-        // Poll for updates every 5 seconds
+        // Poll for updates every 10 seconds
         const interval = setInterval(() => {
             fetchCases();
-        }, 5000);
+        }, 10000);
 
         return () => clearInterval(interval);
     }, []);
@@ -54,111 +57,196 @@ export default function UnderwriterDashboard() {
         navigate(`/underwriter/cases/${caseId}`);
     };
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Underwriter Dashboard</h1>
-                        <p className="text-sm text-gray-600">Cases awaiting underwriting decision</p>
-                    </div>
-                    <button
-                        onClick={logout}
-                        className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
-                    >
-                        Logout
-                    </button>
-                </div>
-            </div>
+    const filteredCases = cases.filter(c =>
+        (c.defendant_first_name + ' ' + c.defendant_last_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.indemnitor_first_name + ' ' + c.indemnitor_last_name).toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-            {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredCases.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedCases = filteredCases.slice(startIndex, startIndex + itemsPerPage);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    return (
+        <div className="min-h-screen bg-slate-50">
+            {/* Top Navigation Bar */}
+            <nav className="bg-white border-b border-slate-200 sticky top-0 z-40">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between h-16">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-600 p-1.5 rounded-lg">
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            </div>
+                            <span className="font-bold text-xl text-slate-900 tracking-tight">Underwriter Dashboard</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 hidden sm:block">
+                                Underwriter Authority
+                            </div>
+                            <button onClick={logout} className="text-sm font-bold text-slate-500 hover:text-slate-900 flex items-center gap-2 transition-colors">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Cases Awaiting Decision</h1>
+                        <p className="text-slate-500 font-medium mt-1">Review pending applications and manage underwriting risk</p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search cases..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all text-sm font-medium w-full md:w-64"
+                            />
+                        </div>
+                        <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all">
+                            <Filter className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
                 {loading ? (
-                    <div className="text-center py-12">Loading cases...</div>
-                ) : cases.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow p-12 text-center">
-                        <Clock className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Cases Pending</h3>
-                        <p className="text-gray-600">All cases have been reviewed or are in other stages.</p>
+                    <div className="flex flex-col items-center justify-center py-24 animate-pulse">
+                        <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                        <span className="text-slate-400 font-bold uppercase tracking-widest text-xs">Fetching Cases...</span>
+                    </div>
+                ) : filteredCases.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-20 text-center shadow-sm">
+                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Clock className="w-10 h-10 text-slate-300" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 mb-2">No Cases Pending</h3>
+                        <p className="text-slate-500 font-medium max-w-xs mx-auto">All cases have been reviewed or are in other stages.</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-lg shadow overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Defendant
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Indemnitor
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Bond Amount
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Premium Type
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Submitted
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Status
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Action
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {cases.map((caseItem) => (
-                                    <tr key={caseItem.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <FileCheck className="w-5 h-5 text-gray-400 mr-2" />
-                                                <div className="text-sm font-medium text-gray-900">
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-100">
+                                <thead>
+                                    <tr className="bg-slate-50/50">
+                                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Defendant</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Indemnitor</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Bond Amount</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                        <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 bg-white">
+                                    {paginatedCases.map((caseItem) => (
+                                        <tr key={caseItem.id} className="group hover:bg-slate-50 transition-all duration-200">
+                                            <td className="px-8 py-5">
+                                                <div className="text-sm font-black text-slate-900 tracking-tight">
                                                     {caseItem.defendant_first_name} {caseItem.defendant_last_name}
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">
-                                                {caseItem.indemnitor_first_name} {caseItem.indemnitor_last_name}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">${caseItem.bond_amount}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{caseItem.premium_type || 'N/A'}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {new Date(caseItem.created_at).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${caseItem.state === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                                                caseItem.state === 'DENIED' ? 'bg-red-100 text-red-800' :
-                                                    caseItem.state === 'HOLD' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-blue-100 text-blue-800'
-                                                }`}>
-                                                {caseItem.state === 'UNDERWRITING_REVIEW' ? 'PENDING' : caseItem.state}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <button
-                                                onClick={() => handleCaseClick(caseItem.id)}
-                                                className="text-blue-600 hover:text-blue-900"
-                                            >
-                                                {caseItem.state === 'UNDERWRITING_REVIEW' ? 'Review →' : 'View →'}
-                                            </button>
-                                        </td>
-                                    </tr>
+                                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-0.5">ID: #{caseItem.id.slice(0, 8)}</div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-white transition-colors border border-transparent group-hover:border-slate-100">
+                                                        <User className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-slate-600">{caseItem.indemnitor_first_name} {caseItem.indemnitor_last_name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="text-sm font-black text-slate-900">${caseItem.bond_amount.toLocaleString()}</div>
+                                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Total Surety</div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter ${caseItem.premium_type === 'High Risk' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                    caseItem.premium_type === 'Surety' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
+                                                        'bg-slate-50 text-slate-500 border border-slate-100'
+                                                    }`}>
+                                                    {caseItem.premium_type || 'Standard'}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 w-fit ${caseItem.state === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-100' :
+                                                    caseItem.state === 'DENIED' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                        'bg-amber-50 text-amber-700 border-amber-100'
+                                                    }`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${caseItem.state === 'APPROVED' ? 'bg-green-500' :
+                                                        caseItem.state === 'DENIED' ? 'bg-red-500' :
+                                                            'bg-amber-500'
+                                                        }`}></div>
+                                                    {caseItem.state === 'UNDERWRITING_REVIEW' ? 'Pending' : caseItem.state}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                <button
+                                                    onClick={() => handleCaseClick(caseItem.id)}
+                                                    className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${['APPROVED', 'HOLD', 'DENIED'].includes(caseItem.state)
+                                                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 hover:shadow-blue-200'
+                                                        }`}
+                                                >
+                                                    {['APPROVED', 'HOLD', 'DENIED'].includes(caseItem.state) ? 'View' : 'Review'}
+                                                    <ArrowUpRight className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination Footer */}
+                        <div className="bg-slate-50/50 px-8 py-6 border-t border-slate-100 flex items-center justify-between">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Showing <span className="text-slate-900">{startIndex + 1}</span> to <span className="text-slate-900">{Math.min(startIndex + itemsPerPage, filteredCases.length)}</span> of <span className="text-slate-900">{filteredCases.length}</span> cases
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                                </button>
+
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${currentPage === page
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                            : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {page}
+                                    </button>
                                 ))}
-                            </tbody>
-                        </table>
+
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
-            </div>
+            </main>
         </div>
     );
 }

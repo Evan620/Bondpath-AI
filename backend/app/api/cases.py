@@ -165,3 +165,110 @@ def update_case(case_id: str, case_update: CaseUpdate, db: Session = Depends(get
     db.commit()
     db.refresh(db_case)
     return db_case
+
+@router.post("/{case_id}/assess-risk", response_model=Dict)
+def reassess_risk(case_id: str, db: Session = Depends(get_db)):
+    """
+    Re-run the AI risk assessment with current complete case data.
+    Called when Advisor submits case to Underwriter.
+    """
+    from ..agents.risk import risk_agent
+    
+    db_case = db.query(CaseModel).filter(CaseModel.id == case_id).first()
+    if db_case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Build comprehensive facts dictionary with ALL available case data
+    facts = {
+        # Defendant Information
+        "defendant_first_name": db_case.defendant_first_name,
+        "defendant_last_name": db_case.defendant_last_name,
+        "defendant_name": f"{db_case.defendant_first_name} {db_case.defendant_last_name}",
+        "defendant_dob": str(db_case.defendant_dob) if db_case.defendant_dob else None,
+        "defendant_gender": db_case.defendant_gender,
+        "defendant_ssn_last4": db_case.defendant_ssn_last4,
+        # Fields not currently in DB model, optional for now
+        # "defendant_phone": db_case.defendant_phone,
+        # "defendant_email": db_case.defendant_email,
+        # "defendant_address": db_case.defendant_address,
+        # "defendant_city": db_case.defendant_city,
+        # "defendant_state": db_case.defendant_state,
+        # "defendant_zip": db_case.defendant_zip,
+        # "defendant_employer": db_case.defendant_employer,
+        # "defendant_occupation": db_case.defendant_occupation,
+        
+        # Incarceration Details
+        "jail_facility": db_case.jail_facility,
+        "county": db_case.county,
+        "state_jurisdiction": db_case.state_jurisdiction,
+        "booking_number": db_case.booking_number,
+        
+        # Bond Information
+        "bond_amount": float(db_case.bond_amount) if db_case.bond_amount else 0,
+        "bond_type": db_case.bond_type,
+        "charges": db_case.charges,
+        "charge_severity": db_case.charge_severity,
+        
+        # Indemnitor Information (Critical for risk assessment)
+        "indemnitor_first_name": db_case.indemnitor_first_name,
+        "indemnitor_last_name": db_case.indemnitor_last_name,
+        "indemnitor_relationship": db_case.indemnitor_relationship,
+        "indemnitor_phone": db_case.indemnitor_phone,
+        "indemnitor_email": db_case.indemnitor_email,
+        "indemnitor_address": db_case.indemnitor_address,
+        # Fields not currently in DB model
+        # "indemnitor_city": db_case.indemnitor_city,
+        # "indemnitor_state": db_case.indemnitor_state,
+        # "indemnitor_zip": db_case.indemnitor_zip,
+        # "indemnitor_employer": db_case.indemnitor_employer,
+        # "indemnitor_occupation": db_case.indemnitor_occupation,
+        # "indemnitor_ssn_last4": db_case.indemnitor_ssn_last4,
+        
+        # Financial Information
+        "premium_type": db_case.premium_type,
+        "payment_method": db_case.payment_method,
+        "down_payment_amount": float(db_case.down_payment_amount) if db_case.down_payment_amount else 0,
+        
+        # Document Availability (affects risk)
+        "has_booking_sheet": bool(db_case.booking_sheet_url),
+        "has_defendant_id": bool(db_case.defendant_id_url),
+        "has_indemnitor_id": bool(db_case.indemnitor_id_url),
+        "has_gov_id": bool(db_case.gov_id_url),
+        "has_collateral_doc": bool(db_case.collateral_doc_url),
+        
+        # Caller Information
+        "caller_name": db_case.caller_name,
+        "caller_relationship": db_case.caller_relationship,
+        
+        # Intent & Flags
+        "intent_signal": db_case.intent_signal,
+        "fast_flags": db_case.fast_flags,
+    }
+    
+    try:
+        # Run risk assessment with complete data
+        risk_output = risk_agent.run(facts)
+        print(f"DEBUG: Risk Agent Output: {risk_output}")
+        
+        # Update derived_facts with new risk assessment
+        # Create a new dictionary to ensure SQLAlchemy detects the change
+        current_facts = dict(db_case.derived_facts) if db_case.derived_facts else {}
+        current_facts['risk'] = risk_output
+        db_case.derived_facts = current_facts
+        
+        db.commit()
+        db.refresh(db_case)
+        
+        return {
+            "success": True,
+            "derived_facts": db_case.derived_facts,
+            "updated_at": db_case.updated_at,
+            "message": "Risk assessment completed successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Risk assessment failed: {str(e)}"
+        )
+
