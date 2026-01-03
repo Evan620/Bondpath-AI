@@ -68,6 +68,7 @@ export default function UnderwriterCaseDetail() {
     const [currentStep, setCurrentStep] = useState(0);
     const [checklist, setChecklist] = useState<VerificationItem[]>([]);
     const [editMode, setEditMode] = useState(false);
+    const [underwriters, setUnderwriters] = useState<{ id: string, email: string }[]>([]);
 
     // Form state
     const [uwName, setUwName] = useState('');
@@ -79,7 +80,17 @@ export default function UnderwriterCaseDetail() {
 
     useEffect(() => {
         fetchCase();
+        fetchUnderwriters();
     }, [id]);
+
+    const fetchUnderwriters = async () => {
+        try {
+            const response = await api.get('/users/underwriters');
+            setUnderwriters(response.data);
+        } catch (error) {
+            console.error('Failed to fetch underwriters:', error);
+        }
+    };
 
     const fetchCase = async () => {
         try {
@@ -96,15 +107,16 @@ export default function UnderwriterCaseDetail() {
             if (data.court_case_number) setCourtCaseNumber(data.court_case_number);
 
             // Build Checklist
+            const savedVerified = data.documents_verified || {};
             const initialChecklist: VerificationItem[] = [
-                { id: 'booking_sheet', label: 'Booking Sheet', type: 'DOCUMENT', url: data.booking_sheet_url, verified: false },
-                { id: 'defendant_id', label: 'Defendant ID', type: 'DOCUMENT', url: data.defendant_id_url, verified: false },
-                { id: 'indemnitor_id', label: 'Indemnitor ID', type: 'DOCUMENT', url: data.indemnitor_id_url, verified: false },
-                { id: 'financials', label: 'Financial Terms', type: 'DATA', value: `${data.premium_type} - ${data.payment_method}`, verified: false },
+                { id: 'booking_sheet', label: 'Booking Sheet', type: 'DOCUMENT', url: data.booking_sheet_url, verified: !!savedVerified['booking_sheet'] },
+                { id: 'defendant_id', label: 'Defendant ID', type: 'DOCUMENT', url: data.defendant_id_url, verified: !!savedVerified['defendant_id'] },
+                { id: 'indemnitor_id', label: 'Indemnitor ID', type: 'DOCUMENT', url: data.indemnitor_id_url, verified: !!savedVerified['indemnitor_id'] },
+                { id: 'financials', label: 'Financial Terms', type: 'DATA', value: `${data.premium_type} - ${data.payment_method}`, verified: !!savedVerified['financials'] },
             ];
 
             if (data.premium_type === 'PAYMENT_PLAN') {
-                initialChecklist.push({ id: 'down_payment', label: 'Initial Down Payment Receipt', type: 'PAYMENT', value: `$${data.down_payment_amount}`, verified: false });
+                initialChecklist.push({ id: 'down_payment', label: 'Initial Down Payment Receipt', type: 'PAYMENT', value: `$${data.down_payment_amount}`, verified: !!savedVerified['down_payment'] });
             }
 
             // Allow restoring verification state if backend supported it (future proofing)
@@ -129,6 +141,34 @@ export default function UnderwriterCaseDetail() {
         const criticalItems = checklist.filter(i => i.url); // Only force verification if URL exists? Or all?
         // Let's enforce all for now as "Compliance"
         return checklist.every(i => i.verified);
+    };
+
+    const nextStep = async () => {
+        if (currentStep === 1) {
+            if (!canProceedToDecision()) {
+                alert("Please verify all compliance items before proceeding.");
+                return;
+            }
+            // Save verification state
+            try {
+                // Map checklist to key-value pairs
+                const verificationMap = checklist.reduce((acc, item) => ({
+                    ...acc,
+                    [item.id]: item.verified
+                }), {});
+
+                await api.patch(`/cases/${id}`, {
+                    documents_verified: verificationMap
+                });
+            } catch (error) {
+                console.error('Failed to save verification state:', error);
+            }
+        }
+        if (currentStep < STEPS.length - 1) setCurrentStep(c => c + 1);
+    };
+
+    const prevStep = () => {
+        if (currentStep > 0) setCurrentStep(c => c - 1);
     };
 
     const handleSubmit = async () => {
@@ -166,18 +206,6 @@ export default function UnderwriterCaseDetail() {
     }
 
     const riskData = caseData.derived_facts?.risk;
-
-    // Wizard Navigation
-    const nextStep = () => {
-        if (currentStep === 1 && !canProceedToDecision()) {
-            alert("Please verify all compliance items before proceeding.");
-            return;
-        }
-        if (currentStep < STEPS.length - 1) setCurrentStep(c => c + 1);
-    };
-    const prevStep = () => {
-        if (currentStep > 0) setCurrentStep(c => c - 1);
-    };
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
@@ -303,13 +331,17 @@ export default function UnderwriterCaseDetail() {
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
                             <div className="mb-6">
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Underwriter Name</label>
-                                <input
-                                    type="text"
+                                <select
                                     value={uwName}
                                     onChange={(e) => setUwName(e.target.value)}
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-slate-900"
-                                    placeholder="Enter your name for the record"
-                                />
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                >
+                                    <option value="">Select Underwriter...</option>
+                                    <option value="Sarah Jenkins">Sarah Jenkins</option>
+                                    <option value="Michael Ross">Michael Ross</option>
+                                    <option value="David Chen">David Chen</option>
+                                    <option value="System Admin">System Admin</option>
+                                </select>
                             </div>
 
                             <div className="grid grid-cols-3 gap-4 mb-6">
